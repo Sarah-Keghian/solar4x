@@ -27,7 +27,7 @@ pub const TRAJECTORIES_PATH: &str = "trajectories";
 
 use std::fs::OpenOptions;
 
-fn debug_to_file(msg: &str) {
+pub fn debug_to_file(msg: &str) {
     let mut file = OpenOptions::new()
         .create(true)             
         .append(true)             
@@ -58,8 +58,7 @@ pub fn plugin(app: &mut App) {
             OnEnter(GameStage::Preparation),
             remove_old_nodes.run_if(in_state(Authoritative)),
         )
-        .add_systems(Update, handle_trajectory_event.pipe(exit_on_error_if_app))
-        .add_systems(OnEnter(GameStage::Preparation), send_add_auto_thrust_event);
+        .add_systems(Update, handle_trajectory_event.pipe(exit_on_error_if_app));
     }
 
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -111,7 +110,7 @@ pub enum TrajectoryEvent {
     },
     AddAutoThrust {
         ship: ShipID,
-        node: ManeuverNode,
+        node_list: Vec<ManeuverNode>,
         tick_interval: u64, 
     },
     RemoveAutoThrust {
@@ -163,16 +162,16 @@ impl std::fmt::Display for TrajectoryError {
 
 impl std::error::Error for TrajectoryError {}
 
-fn send_add_auto_thrust_event(mut event_writer: EventWriter<TrajectoryEvent>) {
-    debug_to_file("entered send_event");
-    event_writer.send(TrajectoryEvent::AddAutoThrust { 
-        ship: "ship".try_into().unwrap(),
-        node: ManeuverNode {
-                    name: String::from("AutoNode"), 
-                    thrust: DVec3::new(10000., 0., 0.), 
-                    origin: "terre".try_into().unwrap()},
-        tick_interval: 100});
-}
+// fn send_add_auto_thrust_event(mut event_writer: EventWriter<TrajectoryEvent>) {
+//     debug_to_file("entered send_event");
+//     event_writer.send(TrajectoryEvent::AddAutoThrust { 
+//         ship: "ship".try_into().unwrap(),
+//         node: ManeuverNode {
+//                     name: String::from("AutoNode"), 
+//                     thrust: DVec3::new(10000., 0., 0.), 
+//                     origin: "terre".try_into().unwrap()},
+//         tick_interval: 100});
+// }
 
 fn read_trajectory(path: impl AsRef<Path>) -> Result<Trajectory, TrajectoryError> {
     let mut file = File::open(&path)?;
@@ -302,15 +301,9 @@ pub fn handle_trajectory_event(
                 t.nodes.remove(tick);
                 write_trajectory(path, &t)?;
             }
-            AddAutoThrust { node, tick_interval, ..} => {
-                debug_to_file("in AddAutothrust event");
+            AddAutoThrust { node_list, tick_interval, ..} => {
                 let mut t = read_trajectory(&path).unwrap_or_default();
-                let _node_exemple: ManeuverNode = ManeuverNode {
-                    name: String::from("AutoNode"), 
-                    thrust: DVec3::new(1000., 0., 0.), 
-                    origin: "terre".try_into().unwrap()};
-                let _tick_int_ex: u64 = 10;
-                (0..10).for_each(|i| {t.nodes.insert(i* *tick_interval, node.clone());});
+                (0..10).for_each(|i| {t.nodes.insert(i* *tick_interval, node_list[i as usize].clone());});
                 write_trajectory(path, &t)?;
         
             }

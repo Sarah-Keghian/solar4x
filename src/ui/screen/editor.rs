@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use arrayvec::ArrayString;
+use rand::Rng;
 
 use bevy::{math::DVec3, prelude::*};
 use bevy_ratatui::event::KeyEvent;
@@ -9,11 +11,11 @@ use ratatui::{
 };
 
 use crate::{
-    objects::ships::trajectory::ManeuverNode, physics::time::SIMTICKS_PER_TICK, prelude::*,
+    objects::ships::trajectory::{ManeuverNode, TrajectoryEvent, debug_to_file}, physics::time::SIMTICKS_PER_TICK, prelude::*,
 };
 
 use super::AppScreen;
-
+use super::editor::editor_backend::ReloadPredictions;
 pub mod editor_backend;
 
 pub fn plugin(app: &mut App) {
@@ -27,6 +29,7 @@ pub fn plugin(app: &mut App) {
                 ((
                     handle_select_prediction.run_if(resource_exists::<Events<SelectObjectEvent>>),
                     handle_editor_events,
+                    sync_editor_with_trajectory
                 )
                     .chain(),)
                     .in_set(EventHandling),
@@ -59,6 +62,7 @@ pub struct EditorContext {
     pub pos: DVec3,
     pub speed: DVec3,
     pub simtick: u64,
+    pub auto_thrust_enabled: bool,
     list_state: ListState,
     /// Each maneuver node is stored here along with the associated tick, and corresponds to a prediction.
     /// Since there is a prediction for each tick, the index of the prediction is simply the number of ticks
@@ -91,6 +95,7 @@ impl EditorContext {
             predictions: Vec::new(),
             temp_predictions: Vec::new(),
             editing_data: None,
+            auto_thrust_enabled: false,
         }
     }
 
@@ -213,11 +218,39 @@ fn clear_screen(mut commands: Commands, query: Query<Entity, With<ClearOnEditorE
     query.iter().for_each(|e| commands.entity(e).despawn());
 }
 
+fn handle_auto_thrust(ctx: &mut EditorContext, trajectory_event: &mut EventWriter<TrajectoryEvent>) {
+    let tick_interval = 25u64;
+    if ctx.auto_thrust_enabled {
+        debug_to_file("to false");
+        trajectory_event.send(TrajectoryEvent::RemoveAutoThrust {
+            ship: ctx.ship_info.id,
+            tick_interval,
+        });
+        ctx.auto_thrust_enabled = false;
+    } else {
+        debug_to_file("to true");
+        let mut rng = rand::thread_rng();
+        let mut node_list: Vec<ManeuverNode> = Vec::new();
+        for _ in 0..10 {
+            let x: f64 = rng.gen_range(200000.0..500000.0);
+            let y: f64 = rng.gen_range(200000.0..500000.0);
+            node_list.push(ManeuverNode{
+            name: "auto_node".to_string(),
+            thrust: DVec3::new(x, y, 0.0),
+            origin: ArrayString::from("terre").unwrap()})
+        }
+        trajectory_event.send(TrajectoryEvent::AddAutoThrust { ship: ctx.ship_info.id, node_list, tick_interval });
+        ctx.auto_thrust_enabled = true;
+    }
+}
+
 fn read_input(
     mut key_event: EventReader<KeyEvent>,
     keymap: Res<Keymap>,
     mut internal_event: EventWriter<SelectNode>,
     mut next_screen: ResMut<NextState<AppScreen>>,
+    mut trajectory_event: EventWriter<TrajectoryEvent>,
+    mut ctx: ResMut<EditorContext>
 ) {
     use Direction2::*;
     use SelectNode::*;
@@ -225,6 +258,10 @@ fn read_input(
     for event in key_event.read() {
         if event.kind == KeyEventKind::Release {
             return;
+        }
+        if keymap.auto_thrust.matches(event) {
+            handle_auto_thrust(&mut ctx, &mut trajectory_event);
+            continue;
         }
         internal_event.send(match event {
             e if keymap.select_next.matches(e) => SelectAdjacent(Down),
@@ -265,6 +302,29 @@ fn handle_editor_events(
                     },
                 );
             }
+        }
+    }
+}
+
+fn sync_editor_with_trajectory(
+    mut events: EventReader<TrajectoryEvent>,
+    mut context : ResMut<EditorContext>,
+    mut reload_predictions : EventWriter<ReloadPredictions>
+) {
+    for event in events.read() {
+        match event {
+            TrajectoryEvent::AddAutoThrust { node_list, tick_interval,.. } => {
+                (0..10).for_each(|i| {context.nodes.insert(i* *tick_interval, node_list[i as usize].clone());});
+                reload_predictions.send_default();
+
+            }
+            TrajectoryEvent::RemoveAutoThrust {tick_interval, ..} => {
+                (0..10).for_each(|i| {
+                    let key = i*tick_interval;
+                    context.nodes.remove(&key);});
+                reload_predictions.send_default();
+            }
+            _ => {},
         }
     }
 }
