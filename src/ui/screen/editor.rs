@@ -28,8 +28,7 @@ pub fn plugin(app: &mut App) {
                 read_input.in_set(InputReading),
                 ((
                     handle_select_prediction.run_if(resource_exists::<Events<SelectObjectEvent>>),
-                    handle_editor_events,
-                    sync_editor_with_trajectory
+                    handle_editor_events
                 )
                     .chain(),)
                     .in_set(EventHandling),
@@ -281,12 +280,14 @@ pub enum SelectNode {
 
 fn handle_editor_events(
     mut context: ResMut<EditorContext>,
-    mut events: EventReader<SelectNode>,
+    mut select_events: EventReader<SelectNode>,
+    mut traj_events : EventReader<TrajectoryEvent>,
+    mut reload_predictions : EventWriter<ReloadPredictions>,
     bodies: Query<&BodyInfo>,
     primary: Query<&BodyInfo, With<PrimaryBody>>,
     space_map: Res<SpaceMap>,
 ) {
-    for event in events.read() {
+    for event in select_events.read() {
         match *event {
             SelectNode::SelectAdjacent(d) => context.select_adjacent(d),
             SelectNode::SelectNearestOrInsert(simtick) => {
@@ -304,19 +305,11 @@ fn handle_editor_events(
             }
         }
     }
-}
-
-fn sync_editor_with_trajectory(
-    mut events: EventReader<TrajectoryEvent>,
-    mut context : ResMut<EditorContext>,
-    mut reload_predictions : EventWriter<ReloadPredictions>
-) {
-    for event in events.read() {
+    for event in traj_events.read() {
         match event {
             TrajectoryEvent::AddAutoThrust { node_list, tick_interval,.. } => {
-                (0..10).for_each(|i| {context.nodes.insert(i* *tick_interval, node_list[i as usize].clone());});
+                (0..10).for_each(|i| {context.select_or_insert(i* *tick_interval, node_list[i as usize].clone());});
                 reload_predictions.send_default();
-
             }
             TrajectoryEvent::RemoveAutoThrust {tick_interval, ..} => {
                 (0..10).for_each(|i| {
