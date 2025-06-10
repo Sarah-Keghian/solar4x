@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 use crate::{
-    objects::ships::trajectory::{ManeuverNode, TrajectoryEvent, debug_to_file}, physics::time::SIMTICKS_PER_TICK, prelude::*,
+    objects::ships::trajectory::{ManeuverNode, TrajectoryEvent}, physics::time::SIMTICKS_PER_TICK, prelude::*,
 };
 
 use super::AppScreen;
@@ -25,6 +25,7 @@ pub fn plugin(app: &mut App) {
         .add_systems(
             Update,
             (
+        
                 read_input.in_set(InputReading),
                 ((
                     handle_select_prediction.run_if(resource_exists::<Events<SelectObjectEvent>>),
@@ -220,14 +221,12 @@ fn clear_screen(mut commands: Commands, query: Query<Entity, With<ClearOnEditorE
 fn handle_auto_thrust(ctx: &mut EditorContext, trajectory_event: &mut EventWriter<TrajectoryEvent>) {
     let tick_interval = 25u64;
     if ctx.auto_thrust_enabled {
-        debug_to_file("to false");
         trajectory_event.send(TrajectoryEvent::RemoveAutoThrust {
             ship: ctx.ship_info.id,
             tick_interval,
         });
         ctx.auto_thrust_enabled = false;
     } else {
-        debug_to_file("to true");
         let mut rng = rand::thread_rng();
         let mut node_list: Vec<ManeuverNode> = Vec::new();
         for _ in 0..10 {

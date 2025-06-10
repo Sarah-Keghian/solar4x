@@ -162,17 +162,6 @@ impl std::fmt::Display for TrajectoryError {
 
 impl std::error::Error for TrajectoryError {}
 
-// fn send_add_auto_thrust_event(mut event_writer: EventWriter<TrajectoryEvent>) {
-//     debug_to_file("entered send_event");
-//     event_writer.send(TrajectoryEvent::AddAutoThrust { 
-//         ship: "ship".try_into().unwrap(),
-//         node: ManeuverNode {
-//                     name: String::from("AutoNode"), 
-//                     thrust: DVec3::new(10000., 0., 0.), 
-//                     origin: "terre".try_into().unwrap()},
-//         tick_interval: 100});
-// }
-
 fn read_trajectory(path: impl AsRef<Path>) -> Result<Trajectory, TrajectoryError> {
     let mut file = File::open(&path)?;
     let mut buf = String::new();
