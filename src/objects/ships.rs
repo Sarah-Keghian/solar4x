@@ -145,17 +145,17 @@ fn calc_elliptical_orbit(
         let semimajor_axis = -mu/2.*epsilon;
         let inclination = (h.z/h.length()).acos();
         let n_vec = DVec3::new(-h.y, h.x, 0.);
-        let long_asc_node = (n_vec.x/n_vec.length()).acos();
+        let mut long_asc_node = (n_vec.x/n_vec.length()).acos();
         if n_vec.y < 0. {
-            let long_asc_node = 2.*PI - long_asc_node;
+            long_asc_node = 2.*PI - long_asc_node;
         }
-        let arg_periapsis = (n_vec.dot(r_vec)/e*r).acos();
+        let mut arg_periapsis = (n_vec.dot(r_vec)/e*r).acos();
         if e_vec.z < 0. {
-            let arg_periapsis = 2.*PI - arg_periapsis;
+            arg_periapsis = 2.*PI - arg_periapsis;
         }
-        let initial_mean_anomaly = (e_vec.dot(r_vec)/e*r).acos();
+        let mut initial_mean_anomaly = (e_vec.dot(r_vec)/e*r).acos();
         if r_vec.dot(v_vec) < 0. {
-            let initial_mean_anomaly = 2.*PI - initial_mean_anomaly;
+            initial_mean_anomaly = 2.*PI - initial_mean_anomaly;
         }
         let revolution_period = 2.*PI*(semimajor_axis.powf(3.)/mu).powf(0.5);
 
