@@ -39,6 +39,7 @@ impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(trajectory::plugin)
             .add_event::<ShipEvent>()
+            .add_event::<SwitchToOrbitalError>()
             .add_systems(Update, handle_ship_events.in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate));
     }
@@ -199,3 +200,4 @@ fn find_host_body(
     };
     None
 }
+
