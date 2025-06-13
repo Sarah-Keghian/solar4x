@@ -201,3 +201,170 @@ fn find_host_body(
     None
 }
 
+#[cfg(test)]
+mod ship_tests {
+    use super::*;
+    use crate::objects::bodies::body_data::{BodyData, BodyType};
+    use bevy::ecs::system::SystemState;
+    use crate::objects::id::id_from;
+    
+    fn setup(app: &mut App, info: &ShipInfo) -> Entity {
+
+        app.add_event::<ShipEvent>();
+        app.add_event::<SwitchToOrbitalError>();
+
+        let sun_data = BodyData {
+            id: id_from("soleil"),
+            name: "Sun".into(),
+            body_type: BodyType::Star,
+            host_body: None,
+            orbiting_bodies: vec![id_from("terre")],
+            semimajor_axis: 0.,
+            eccentricity: 0.,
+            inclination: 0.,
+            long_asc_node: 0.,
+            arg_periapsis: 0.,
+            initial_mean_anomaly: 0.,
+            periapsis: 0.,
+            apoapsis: 0.,
+            revolution_period: 0.,
+            rotation_period: 0.,
+            radius: 695508.,
+            mass: 1.989e30
+        };
+        let earth_data = BodyData {
+            id: id_from("terre"),
+            name: "Earth".into(),
+            body_type: BodyType::Planet,
+            host_body: Some(id_from("terre")),
+            orbiting_bodies: Vec::new(),
+            semimajor_axis: 149598023.,
+            eccentricity: 0.01670,
+            inclination: 0.,
+            long_asc_node: 18.272,
+            arg_periapsis: 85.901,
+            initial_mean_anomaly: 358.617,
+            periapsis: 147095000.,
+            apoapsis: 152100000.,
+            revolution_period: 365.256,
+            rotation_period: 23.9345,
+            radius: 6371.00840,
+            mass: 5.97237e24
+        };
+        let primary_body = app.world_mut().spawn( (
+            Position::default(),
+            EllipticalOrbit::from(&sun_data),
+            Mass(sun_data.mass),
+            BodyInfo(sun_data.clone()),
+            Velocity::default(),
+            ClearOnUnload,
+            PrimaryBody,
+            HillRadius(f64::INFINITY)
+        )).id();
+
+        let hill_radius_earth = (earth_data.semimajor_axis
+            * (1. - earth_data.eccentricity)
+            * (earth_data.mass / (3. * (sun_data.mass + earth_data.mass))).powf(1. / 3.))
+            .max(earth_data.radius);    
+        
+        let body = app.world_mut().spawn( (
+            Position::default(),
+            EllipticalOrbit::from(&earth_data),
+            Mass(earth_data.mass),
+            BodyInfo(earth_data),
+            Velocity::default(),
+            ClearOnUnload,
+            HillRadius(hill_radius_earth)
+        )).id();
+
+        let mut mapping = HashMap::new();
+        mapping.insert(id_from("soleil"), primary_body);
+        mapping.insert(id_from("terre"), body);
+        app.insert_resource(ShipsMapping::default());
+        app.insert_resource(BodiesMapping(mapping));
+
+        let mut state_mapping: SystemState<Res<BodiesMapping>> = SystemState::new(&mut app.world_mut());
+        let mut state_query: SystemState<Query<(&Position, &HillRadius, &BodyInfo)>> = SystemState::new(&mut app.world_mut());
+        let (bodies_mapping, bodies) = {
+            let world = app.world();
+            (
+                state_mapping.get(&world),
+                state_query.get(&world)
+            )
+        };
+
+        let pos = Position(info.spawn_pos); 
+        let influence = Influenced::new(&pos, &bodies, bodies_mapping.as_ref(), id_from("soleil"));
+        let acceleration = Acceleration::new(get_acceleration(
+                                    info.spawn_pos,
+                                    bodies
+                                        .iter_many(&influence.influencers)
+                                        .map(|(p, _, i)| (p.0, i.0.mass))));
+
+        let ship_entity = app.world_mut().spawn((
+            info.clone(),
+            acceleration,
+            influence,
+            pos,
+            Velocity(info.spawn_speed),
+            TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
+            ClearOnUnload,
+        )).id();
+
+        app.world_mut().resource_mut::<ShipsMapping>().0.insert(info.id, ship_entity);
+
+        return ship_entity;
+    }
+
+    #[test]
+    fn test_switch_to_orbital() {
+
+        let mut app = App::new();
+
+        let info = ShipInfo {
+            id: ShipID::from("s").unwrap(),
+            spawn_pos: DVec3 { x: -32501208.838173263, y: 143561259.9263618, z: 0.},
+            spawn_speed: DVec3 { x: -2696715.3893552525, y: -672187.3782865074, z: 0. } 
+        };
+
+        let ship_entity = setup(&mut app, &info);
+
+        app.add_systems(Update, handle_ship_events);
+
+        app.world_mut().resource_mut::<Events<ShipEvent>>()
+            .send(ShipEvent::SwitchToOrbital { ship_id: info.id });
+
+        app.update();
+
+        let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
+        assert!(orbit.is_some(), "Le vaisseau devrait maintenant avoir un composant EllipticalOrbit");
+
+    }
+
+    #[test]
+    fn test_switch_to_orbital_impossible() {
+
+        let mut app = App::new();
+
+        // let info = ShipInfo {
+        //     id: ShipID::from("s1").unwrap(),
+        //     spawn_pos: DVec3 { x: -7543652.249402, y: 129905998.4027889, z: 0.},
+        //     spawn_speed: DVec3 { x: -2304513.078405577, y: -1267321.762409748, z: 0. } 
+        // };
+        
+        //Vaisseau dans le rayon de Hill mais pas en orbite 
+        let info = ShipInfo {
+            id: ShipID::from("s2").unwrap(),
+            spawn_pos: DVec3 { x: -2522401.726568888, y: 142515717.88224745, z: 0.},
+            spawn_speed: DVec3 { x: -2522401.726568888, y: -544246.5886227646, z: 0. } 
+        };
+
+        let ship_entity = setup(&mut app, &info);
+
+        app.add_systems(Update, handle_ship_events);
+
+        let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
+        assert!(orbit.is_none(), "Le vaisseau ne devrait pas avoir de composant EllipticalOrbit");
+
+    }
+}
