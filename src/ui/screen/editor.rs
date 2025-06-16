@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use bevy::{math::DVec3, prelude::*};
+use bevy::{math::DVec3, prelude::*, render::render_resource::encase::internal};
 use bevy_ratatui::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use ratatui::{
@@ -19,7 +19,7 @@ pub mod editor_backend;
 pub fn plugin(app: &mut App) {
     app.add_plugins(editor_backend::plugin)
         .add_computed_state::<InEditor>()
-        .add_event::<SelectNode>()
+        .add_event::<EditorEvents>()
         .add_systems(
             Update,
             (
@@ -216,11 +216,12 @@ fn clear_screen(mut commands: Commands, query: Query<Entity, With<ClearOnEditorE
 fn read_input(
     mut key_event: EventReader<KeyEvent>,
     keymap: Res<Keymap>,
-    mut internal_event: EventWriter<SelectNode>,
+    mut internal_event: EventWriter<EditorEvents>,
     mut next_screen: ResMut<NextState<AppScreen>>,
+    context: Res<EditorContext>,
 ) {
     use Direction2::*;
-    use SelectNode::*;
+    use EditorEvents::*;
     let keymap = &keymap.editor;
     for event in key_event.read() {
         if event.kind == KeyEventKind::Release {
@@ -229,6 +230,7 @@ fn read_input(
         internal_event.send(match event {
             e if keymap.select_next.matches(e) => SelectAdjacent(Down),
             e if keymap.select_previous.matches(e) => SelectAdjacent(Up),
+            e if keymap.create_schedule.matches(e) => CreateSchedule(context.ship),
             e if keymap.back.matches(e) => return next_screen.set(AppScreen::Fleet),
             // e if keymap.new_node.matches(e) => NewNode(None),
             _ => return,
@@ -237,22 +239,23 @@ fn read_input(
 }
 
 #[derive(Event, Clone, Copy)]
-pub enum SelectNode {
+pub enum EditorEvents {
     SelectAdjacent(Direction2),
     SelectNearestOrInsert(u64),
+    CreateSchedule(Entity),
 }
 
 fn handle_editor_events(
     mut context: ResMut<EditorContext>,
-    mut events: EventReader<SelectNode>,
+    mut events: EventReader<EditorEvents>,
     bodies: Query<&BodyInfo>,
     primary: Query<&BodyInfo, With<PrimaryBody>>,
     space_map: Res<SpaceMap>,
 ) {
     for event in events.read() {
         match *event {
-            SelectNode::SelectAdjacent(d) => context.select_adjacent(d),
-            SelectNode::SelectNearestOrInsert(simtick) => {
+            EditorEvents::SelectAdjacent(d) => context.select_adjacent(d),
+            EditorEvents::SelectNearestOrInsert(simtick) => {
                 let origin = space_map
                     .focus_body
                     .map_or(primary.single().0.id, |e| bodies.get(e).unwrap().0.id);
@@ -265,18 +268,19 @@ fn handle_editor_events(
                     },
                 );
             }
+            _=> return,
         }
     }
 }
 
 fn handle_select_prediction(
     mut select_events: EventReader<SelectObjectEvent>,
-    mut editor_events: EventWriter<SelectNode>,
+    mut editor_events: EventWriter<EditorEvents>,
     predictions: Query<&Prediction>,
 ) {
     for event in select_events.read() {
         if let Ok(p) = predictions.get(event.entity) {
-            editor_events.send(SelectNode::SelectNearestOrInsert(p.simtick));
+            editor_events.send(EditorEvents::SelectNearestOrInsert(p.simtick));
         }
     }
 }
