@@ -227,24 +227,19 @@ fn read_input(
         if event.kind == KeyEventKind::Release {
             return;
         }
-        internal_event.send(match event {
-            e if keymap.select_next.matches(e) => { internal_event.send(SelectAdjacent(Down)); },
-            e if keymap.select_previous.matches(e) => { internal_event.send(SelectAdjacent(Up)); },
-            e if keymap.create_schedule.matches(e) => {
-                internal_event.send(CreateSchedule{
-                ship: context.ship, 
-                ship_id: context.ship_info.id});
-                internal_event.send(AppScreen::Scheduler);
-                return;
-
-            },
-            e if keymap.back.matches(e) => { 
-                internal_event.send(next_screen.set(AppScreen::Fleet));
-                return;
-            },
-            // e if keymap.new_node.matches(e) => NewNode(None),
-            _ => return,
-        });
+        if keymap.select_next.matches(event) {
+            internal_event.send(SelectAdjacent(Down));
+        } else if keymap.select_previous.matches(event) {
+            internal_event.send(SelectAdjacent(Up));
+        } else if keymap.create_schedule.matches(event) {
+            internal_event.send(CreateSchedule {
+                ship: context.ship,
+                ship_id: context.ship_info.id,
+            });
+            next_screen.set(AppScreen::Scheduler(context.ship_info.id));
+        } else if keymap.back.matches(event) {
+            next_screen.set(AppScreen::Fleet);
+        }
     }
 }
 

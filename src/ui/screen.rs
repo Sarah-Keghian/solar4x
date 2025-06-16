@@ -115,7 +115,7 @@ fn render(
         AppScreen::Editor(_) => {
             f.render_stateful_widget(EditorScreen, f.size(), editor.unwrap().as_mut())
         }
-        AppScreen::Scheduler(_) => {}
+        AppScreen::Scheduler(_) => {} // A REMPLIR UNE FOIS L'UI FAITE
     })?;
     Ok(())
 }
