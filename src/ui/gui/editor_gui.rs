@@ -8,7 +8,7 @@ use crate::{
                 ChangeNodeTick, ChangePredictionsNumber, ConfirmThrust, NumberOfPredictions,
                 ReloadPredictions, TempPrediction, UpdateThrust,
             },
-            ClearOnEditorExit, EditorContext, SelectNode,
+            ClearOnEditorExit, EditorContext, EditorEvents,
         },
         widget::space_map::SpaceMap,
         RenderSet,
@@ -50,7 +50,7 @@ pub fn plugin(app: &mut App) {
             (despawn_arrows, spawn_arrows)
                 .chain()
                 .after(EventHandling)
-                .run_if(on_event::<SelectNode>()),
+                .run_if(on_event::<EditorEvents>()),
         )
         .add_systems(
             Update,

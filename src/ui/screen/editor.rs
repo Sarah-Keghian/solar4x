@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use bevy::{math::DVec3, prelude::*, render::render_resource::encase::internal};
+use bevy::{math::DVec3, prelude::*};
 use bevy_ratatui::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use ratatui::{
