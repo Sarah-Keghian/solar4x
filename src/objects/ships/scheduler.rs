@@ -1,12 +1,13 @@
 use super::trajectory::ManeuverNode;
 use crate::objects::ships::ShipID;
 use crate::physics::time::GameTime;
+use crate::ui::screen::editor::EditorEvents;
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.add_event::<ShipAction>()
-        .add_systems(Update, handle_schedules);
-        
+        .add_systems(Update, handle_schedules)
+        .add_systems(Update, create_schedules);
 }
 
 #[derive(Clone)]
@@ -37,10 +38,19 @@ impl ShipAction {
     }
 }
 
-#[derive(Component, Clone)] // Penser à insérer ce composant dans les entités ships
+#[derive(Component, Clone)]
 struct Scheduler {
     ship: ShipID,
     actions: Vec<(u64, ShipActionKind)>
+}
+
+impl Scheduler {
+    fn new(ship: ShipID) -> Self {
+        Self {
+            ship,
+            actions: Vec::new(),
+        }
+    }
 }
 
 fn handle_schedules (
@@ -60,4 +70,13 @@ fn handle_schedules (
     }
 }
 
-
+fn create_schedules(
+    mut commands: Commands,
+    mut events: EventReader<EditorEvents>,
+) {
+    for event in events.read() {
+        if let EditorEvents::CreateSchedule{ship, ship_id} = event {
+            commands.entity(*ship).insert(Scheduler::new(*ship_id));
+        }
+    }
+}

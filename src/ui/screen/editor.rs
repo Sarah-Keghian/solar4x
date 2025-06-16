@@ -230,7 +230,9 @@ fn read_input(
         internal_event.send(match event {
             e if keymap.select_next.matches(e) => SelectAdjacent(Down),
             e if keymap.select_previous.matches(e) => SelectAdjacent(Up),
-            e if keymap.create_schedule.matches(e) => CreateSchedule(context.ship),
+            e if keymap.create_schedule.matches(e) => CreateSchedule{
+                ship: context.ship, 
+                ship_id: context.ship_info.id},
             e if keymap.back.matches(e) => return next_screen.set(AppScreen::Fleet),
             // e if keymap.new_node.matches(e) => NewNode(None),
             _ => return,
@@ -242,7 +244,7 @@ fn read_input(
 pub enum EditorEvents {
     SelectAdjacent(Direction2),
     SelectNearestOrInsert(u64),
-    CreateSchedule(Entity),
+    CreateSchedule{ ship: Entity, ship_id: ShipID },
 }
 
 fn handle_editor_events(
