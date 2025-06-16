@@ -76,11 +76,7 @@ fn create_schedules(
 ) {
     for event in events.read() {
         if let EditorEvents::CreateSchedule{ship, ship_id} = event {
-            commands.entity(*ship).insert(schedule::new(*ship_id));
+            commands.entity(*ship).insert(Schedule::new(*ship_id));
         }
     }
-}
-
-fn add_action() {
-
 }
