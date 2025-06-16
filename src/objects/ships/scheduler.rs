@@ -1,4 +1,4 @@
-use super::trajectory::ManeuverNode;
+use super::trajectory::{TrajectoryEvent, ManeuverNode};
 use crate::objects::ships::ShipID;
 use crate::physics::time::GameTime;
 use crate::ui::screen::editor::EditorEvents;
@@ -30,9 +30,9 @@ pub enum ShipAction {
 }
 
 impl ShipAction {
-    fn with_ship(ship: ShipID, kind: ShipActionKind) -> Self {
+    fn with_ship(ship: ShipID, kind: &ShipActionKind) -> Self {
         match kind {
-            ShipActionKind::AddNode { node, tick } => ShipAction::AddNode { ship, node, tick },
+            ShipActionKind::AddNode { node, tick } => ShipAction::AddNode { ship, node: node.clone(), tick: tick.clone() },
             ShipActionKind::OtherAction => ShipAction::OtherAction { ship },
         }
     }
@@ -55,7 +55,7 @@ impl Schedule {
 
 fn handle_schedules (
     mut query: Query<&mut Schedule>,
-    mut writer: EventWriter<ShipAction>,
+    mut traj_writer: EventWriter<TrajectoryEvent>,
     time: Res<GameTime>, 
 ) {
     for mut schedule in query.iter_mut() {
@@ -63,8 +63,15 @@ fn handle_schedules (
         while i < schedule.actions.len() {
             if schedule.actions[i].0 <= time.tick() {
                 let (_tick, kind) = schedule.actions.remove(i);
-                let action = ShipAction::with_ship(schedule.ship, kind);
-                writer.send(action);
+                let _action = ShipAction::with_ship(schedule.ship, &kind); 
+
+                if let ShipActionKind::AddNode { node, tick } = kind {
+                    traj_writer.send(TrajectoryEvent::AddNode {
+                        ship: schedule.ship.clone(),
+                        node,
+                        tick,
+                    });            
+                }
             }
         }
     }
