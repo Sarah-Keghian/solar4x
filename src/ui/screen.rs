@@ -17,6 +17,7 @@ pub mod editor;
 pub mod explorer;
 pub mod fleet;
 pub mod start;
+pub mod schedule_screen;
 
 /// A resource storing the current screen
 /// Set this to change screen, the appropriate context is automatically generated when the app is ready
@@ -28,6 +29,7 @@ pub enum AppScreen {
     Explorer,
     Fleet,
     Editor(ShipID),
+    Scheduler(ShipID),
 }
 
 #[derive(Resource, Default, Debug)]
@@ -113,6 +115,7 @@ fn render(
         AppScreen::Editor(_) => {
             f.render_stateful_widget(EditorScreen, f.size(), editor.unwrap().as_mut())
         }
+        AppScreen::Scheduler(_) => {}
     })?;
     Ok(())
 }

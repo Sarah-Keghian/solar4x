@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.add_event::<ShipAction>()
-        .add_systems(Update, handle_schedules)
+        .add_systems(FixedUpdate, handle_schedules)
         .add_systems(Update, create_schedules);
 }
 
@@ -20,7 +20,7 @@ enum ShipActionKind {
 }
 
 #[derive(Event)]
-enum ShipAction {
+pub enum ShipAction {
     AddNode {
         ship: ShipID,
         node: ManeuverNode,
@@ -39,12 +39,12 @@ impl ShipAction {
 }
 
 #[derive(Component, Clone)]
-struct Scheduler {
+struct Schedule {
     ship: ShipID,
     actions: Vec<(u64, ShipActionKind)>
 }
 
-impl Scheduler {
+impl Schedule {
     fn new(ship: ShipID) -> Self {
         Self {
             ship,
@@ -54,16 +54,16 @@ impl Scheduler {
 }
 
 fn handle_schedules (
-    mut query: Query<&mut Scheduler>,
+    mut query: Query<&mut Schedule>,
     mut writer: EventWriter<ShipAction>,
     time: Res<GameTime>, 
 ) {
-    for mut scheduler in query.iter_mut() {
+    for mut schedule in query.iter_mut() {
         let i: usize = 0;
-        while i < scheduler.actions.len() {
-            if scheduler.actions[i].0 <= time.tick() {
-                let (_tick, kind) = scheduler.actions.remove(i);
-                let action = ShipAction::with_ship(scheduler.ship, kind);
+        while i < schedule.actions.len() {
+            if schedule.actions[i].0 <= time.tick() {
+                let (_tick, kind) = schedule.actions.remove(i);
+                let action = ShipAction::with_ship(schedule.ship, kind);
                 writer.send(action);
             }
         }
@@ -76,7 +76,11 @@ fn create_schedules(
 ) {
     for event in events.read() {
         if let EditorEvents::CreateSchedule{ship, ship_id} = event {
-            commands.entity(*ship).insert(Scheduler::new(*ship_id));
+            commands.entity(*ship).insert(schedule::new(*ship_id));
         }
     }
+}
+
+fn add_action() {
+
 }
