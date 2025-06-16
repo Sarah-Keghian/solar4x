@@ -14,6 +14,7 @@ use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
 use super::ObjectsUpdate;
 
 pub mod trajectory;
+pub mod scheduler;
 
 // pub(crate) struct ShipID(u64);
 
@@ -31,7 +32,6 @@ pub mod trajectory;
 //         ShipID(u)
 //     }
 // }
-
 pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
