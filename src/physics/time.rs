@@ -81,7 +81,7 @@ fn update_tick(mut writer: EventWriter<TickEvent>, game_time: Res<GameTime>) {
     }
 }
 
-fn update_simtick(mut game_time: ResMut<GameTime>, step: Res<SimStepSize>) {
+pub(crate) fn update_simtick(mut game_time: ResMut<GameTime>, step: Res<SimStepSize>) {
     game_time.simtick += step.0;
 }
 

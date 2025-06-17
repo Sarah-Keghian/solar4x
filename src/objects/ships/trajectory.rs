@@ -60,7 +60,7 @@ pub struct ManeuverNode {
 }
 
 /// A succession of maneuver nodes sorted by order of time, with a single node per server tick
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 pub struct Trajectory {
     #[serde(with = "vectorize")]
     pub nodes: BTreeMap<u64, ManeuverNode>,
@@ -80,7 +80,7 @@ impl CurrentTrajectory {
     }
 }
 
-#[derive(Event, Debug, Clone)]
+#[derive(Event, Debug, Clone, PartialEq)]
 pub enum TrajectoryEvent {
     Create {
         ship: ShipID,
