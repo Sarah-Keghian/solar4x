@@ -232,10 +232,7 @@ fn read_input(
         } else if keymap.select_previous.matches(event) {
             internal_event.send(SelectAdjacent(Up));
         } else if keymap.create_schedule.matches(event) {
-            internal_event.send(CreateSchedule {
-                ship: context.ship,
-                ship_id: context.ship_info.id,
-            });
+            internal_event.send(CreateSchedule(context.ship_info.id));
             next_screen.set(AppScreen::Scheduler(context.ship_info.id));
         } else if keymap.back.matches(event) {
             next_screen.set(AppScreen::Fleet);
@@ -247,7 +244,7 @@ fn read_input(
 pub enum EditorEvents {
     SelectAdjacent(Direction2),
     SelectNearestOrInsert(u64),
-    CreateSchedule{ ship: Entity, ship_id: ShipID },
+    CreateSchedule(ShipID),
 }
 
 fn handle_editor_events(

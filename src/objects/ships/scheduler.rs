@@ -1,12 +1,12 @@
 use super::trajectory::{TrajectoryEvent, ManeuverNode};
-use crate::objects::ships::ShipID;
+use crate::objects::ships::{ShipID, ShipsMapping};
 use crate::physics::time::GameTime;
 use crate::ui::screen::editor::EditorEvents;
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(FixedUpdate, handle_schedules)
-        .add_systems(Update, create_schedules);
+        .add_systems(Update, create_schedule);
 }
 
 #[derive(Clone)]
@@ -66,13 +66,16 @@ fn convert_kind(
     }
 }
 
-fn create_schedules(
+fn create_schedule(
     mut commands: Commands,
     mut events: EventReader<EditorEvents>,
+    mapping: Res<ShipsMapping>,
 ) {
     for event in events.read() {
-        if let EditorEvents::CreateSchedule{ship, ship_id} = event {
-            commands.entity(*ship).insert(Schedule::new(*ship_id));
+        if let EditorEvents::CreateSchedule(ship_id) = event {
+            if let Some(ship) = mapping.0.get(ship_id) {
+                commands.entity(*ship).insert(Schedule::new(*ship_id));
+            }
         }
     }
 }
