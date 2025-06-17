@@ -11,6 +11,7 @@ use crate::physics::prelude::*;
 
 use super::id::MAX_ID_LENGTH;
 use super::ObjectsUpdate;
+use super::orbital_obj::OrbitingObjects;
 
 pub mod bodies_config;
 pub mod body_data;
@@ -70,6 +71,7 @@ pub fn build_system(mut commands: Commands, config: Res<BodiesConfig>) {
             Position::default(),
             EllipticalOrbit::from(&data),
             Mass(data.mass),
+            OrbitingObjects::to_orbiting_objects(&data.orbiting_bodies),
             BodyInfo(data),
             Velocity::default(),
             ClearOnUnload,
