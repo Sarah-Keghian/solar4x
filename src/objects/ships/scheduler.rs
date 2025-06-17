@@ -5,8 +5,7 @@ use crate::ui::screen::editor::EditorEvents;
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
-    app.add_event::<ShipAction>()
-        .add_systems(FixedUpdate, handle_schedules)
+    app.add_systems(FixedUpdate, handle_schedules)
         .add_systems(Update, create_schedules);
 }
 
@@ -17,25 +16,6 @@ enum ShipActionKind {
         tick: u64,
     },
     OtherAction,
-}
-
-#[derive(Event)]
-pub enum ShipAction {
-    AddNode {
-        ship: ShipID,
-        node: ManeuverNode,
-        tick: u64,
-    },
-    OtherAction { ship: ShipID },
-}
-
-impl ShipAction {
-    fn with_ship(ship: ShipID, kind: &ShipActionKind) -> Self {
-        match kind {
-            ShipActionKind::AddNode { node, tick } => ShipAction::AddNode { ship, node: node.clone(), tick: tick.clone() },
-            ShipActionKind::OtherAction => ShipAction::OtherAction { ship },
-        }
-    }
 }
 
 #[derive(Component, Clone)]
@@ -55,25 +35,34 @@ impl Schedule {
 
 fn handle_schedules (
     mut query: Query<&mut Schedule>,
-    mut traj_writer: EventWriter<TrajectoryEvent>,
+    mut traj_writer:EventWriter<TrajectoryEvent>,
     time: Res<GameTime>, 
 ) {
     for mut schedule in query.iter_mut() {
-        let i: usize = 0;
+        let mut i: usize = 0;
         while i < schedule.actions.len() {
             if schedule.actions[i].0 <= time.tick() {
                 let (_tick, kind) = schedule.actions.remove(i);
-                let _action = ShipAction::with_ship(schedule.ship, &kind); 
-
-                if let ShipActionKind::AddNode { node, tick } = kind {
-                    traj_writer.send(TrajectoryEvent::AddNode {
-                        ship: schedule.ship.clone(),
-                        node,
-                        tick,
-                    });            
-                }
+                let ship = schedule.ship;
+                convert_kind(&kind, &ship, &mut traj_writer);        
+            } else {
+                i += 1;
             }
         }
+    }
+}
+
+fn convert_kind(
+    kind: &ShipActionKind,
+    ship: &ShipID,
+    traj_writer: &mut EventWriter<TrajectoryEvent>
+) {
+    if let ShipActionKind::AddNode { node, tick } = kind {
+        traj_writer.send(TrajectoryEvent::AddNode {
+                        ship: ship.clone(),
+                        node: node.clone(),
+                        tick: *tick,
+                        });
     }
 }
 
