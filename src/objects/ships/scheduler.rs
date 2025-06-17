@@ -19,12 +19,12 @@ enum ShipActionKind {
 }
 
 #[derive(Component, Clone)]
-struct Schedule {
+struct ShipSchedule {
     ship: ShipID,
     actions: Vec<(u64, ShipActionKind)>
 }
 
-impl Schedule {
+impl ShipSchedule {
     fn new(ship: ShipID) -> Self {
         Self {
             ship,
@@ -34,7 +34,7 @@ impl Schedule {
 }
 
 fn handle_schedules (
-    mut query: Query<&mut Schedule>,
+    mut query: Query<&mut ShipSchedule>,
     mut traj_writer:EventWriter<TrajectoryEvent>,
     time: Res<GameTime>, 
 ) {
@@ -74,8 +74,43 @@ fn create_schedule(
     for event in events.read() {
         if let EditorEvents::CreateSchedule(ship_id) = event {
             if let Some(ship) = mapping.0.get(ship_id) {
-                commands.entity(*ship).insert(Schedule::new(*ship_id));
+                commands.entity(*ship).insert(ShipSchedule::new(*ship_id));
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::*;
+    use super::*;
+    use arrayvec::ArrayString;
+
+    #[test]
+    fn test_create_schedule() {
+        let mut app = App::new();
+        
+        app.add_event::<EditorEvents>()
+            .init_resource::<ShipsMapping>()
+            .add_systems(Update, create_schedule);
+
+        #[derive(Component, Clone)]
+        struct ShipInfo{ id: ShipID }
+
+        let ship_id: ShipID = ArrayString::from("ship").unwrap();
+        let info = ShipInfo{ id: ship_id };
+        let ship = app.world_mut().spawn(info.clone()).id();
+
+        let mut ships_mapping = app.world_mut().resource_mut::<ShipsMapping>();
+        ships_mapping.0.insert(info.id, ship);
+
+        app.world_mut().send_event(EditorEvents::CreateSchedule(info.id));
+        
+        app.update();
+
+        let schedule = app.world().get::<ShipSchedule>(ship);
+        assert!(schedule.is_some(), "ShipSchedule should be inserted on ship entity");
+
+    }
+
 }
