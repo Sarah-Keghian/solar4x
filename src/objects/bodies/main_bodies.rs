@@ -283,11 +283,11 @@ mod tests {
     #[test]
     fn test_fix_bodies() {
         let bodies_orbiting = read_main_bodies().unwrap();
-        let sun_orbiting = bodies_orbiting
+        let (sun,_) = bodies_orbiting
             .iter()
-            .find(|data| data.0.id == id_from(SUN_ID))
+            .find(|(bodies,_)| bodies.id == id_from(SUN_ID))
             .unwrap();
-        assert!(sun_orbiting.0.host_body.is_none());
+        assert!(sun.host_body.is_none());
         for (planet, _orbiting_obj) in bodies_orbiting
             .iter()
             .filter(|data| matches!(data.0.body_type, BodyType::Planet))
