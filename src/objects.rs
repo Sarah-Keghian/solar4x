@@ -3,7 +3,7 @@ use bevy::prelude::SystemSet;
 pub mod bodies;
 pub mod id;
 pub mod ships;
-pub mod orbital_obj;
+pub mod orbiting_obj;
 
 pub mod prelude {
 

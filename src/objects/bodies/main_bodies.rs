@@ -4,7 +4,7 @@ use serde::{de::Visitor, Deserialize, Deserializer};
 
 use crate::{
     objects::{id::{id_from, MAX_ID_LENGTH}, 
-            orbital_obj::OrbitingObjects},
+            orbiting_obj::OrbitingObjects},
     utils::de::deserialize_options,
 };
 
