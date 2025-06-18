@@ -202,11 +202,15 @@ fn find_host_body(
 }
 
 #[cfg(test)]
-mod ship_tests {
+mod tests {
     use super::*;
-    use crate::objects::bodies::body_data::{BodyData, BodyType};
+    use crate::objects::{
+        bodies::body_data::{BodyData, BodyType},
+        orbital_obj::{OrbitingObjects, OrbitalObjID},
+    };
     use bevy::ecs::system::SystemState;
     use crate::objects::id::id_from;
+    
     
     fn setup(app: &mut App, info: &ShipInfo) -> Entity {
 
@@ -218,7 +222,6 @@ mod ship_tests {
             name: "Sun".into(),
             body_type: BodyType::Star,
             host_body: None,
-            orbiting_bodies: vec![id_from("terre")],
             semimajor_axis: 0.,
             eccentricity: 0.,
             inclination: 0.,
@@ -237,7 +240,6 @@ mod ship_tests {
             name: "Earth".into(),
             body_type: BodyType::Planet,
             host_body: Some(id_from("terre")),
-            orbiting_bodies: Vec::new(),
             semimajor_axis: 149598023.,
             eccentricity: 0.01670,
             inclination: 0.,
@@ -255,6 +257,7 @@ mod ship_tests {
             Position::default(),
             EllipticalOrbit::from(&sun_data),
             Mass(sun_data.mass),
+            OrbitingObjects(vec![OrbitalObjID::Body(id_from("terre"))]),
             BodyInfo(sun_data.clone()),
             Velocity::default(),
             ClearOnUnload,
@@ -271,6 +274,7 @@ mod ship_tests {
             Position::default(),
             EllipticalOrbit::from(&earth_data),
             Mass(earth_data.mass),
+            OrbitingObjects(Vec::new()),
             BodyInfo(earth_data),
             Velocity::default(),
             ClearOnUnload,
