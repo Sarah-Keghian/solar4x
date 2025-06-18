@@ -3,7 +3,8 @@ use std::{fs::File, io::Read};
 use serde::{de::Visitor, Deserialize, Deserializer};
 
 use crate::{
-    objects::id::{id_from, MAX_ID_LENGTH},
+    objects::{id::{id_from, MAX_ID_LENGTH}, 
+            orbital_obj::OrbitingObjects},
     utils::de::deserialize_options,
 };
 
@@ -128,11 +129,6 @@ impl From<MainBodyData> for BodyData {
             name: value.name,
             body_type: value.body_type,
             host_body: value.host_body.map(Into::<BodyID>::into),
-            orbiting_bodies: value
-                .orbiting_bodies
-                .into_iter()
-                .map(Into::<BodyID>::into)
-                .collect(),
             semimajor_axis: value.semimajor_axis as f64,
             eccentricity: value.eccentricity,
             inclination: value.inclination,
@@ -162,7 +158,7 @@ impl From<Mass> for f64 {
     }
 }
 
-pub fn read_main_bodies() -> std::io::Result<Vec<BodyData>> {
+pub fn read_main_bodies() -> std::io::Result<Vec<(BodyData, OrbitingObjects)>> {
     let mut file = File::open(MAIN_OBJECT_FILE_PATH)?;
     let mut buf = String::new();
     file.read_to_string(&mut buf)?;
@@ -171,7 +167,15 @@ pub fn read_main_bodies() -> std::io::Result<Vec<BodyData>> {
         bodies: Vec<MainBodyData>,
     }
     let input: Input = serde_json::from_str(&buf).map_err(std::io::Error::from)?;
-    fix_bodies(input.bodies).map(|b| b.into_iter().map(BodyData::from).collect())
+    fix_bodies(input.bodies).map(|b| {
+        b.into_iter()
+        .map(|raw| { 
+            let orbiting_obj = OrbitingObjects::from(&raw);
+            let body_data = BodyData::from(raw);
+            (body_data, orbiting_obj)
+            })
+            .collect::<Vec<_>>()
+        })
 }
 
 fn fix_bodies(mut bodies: Vec<MainBodyData>) -> std::io::Result<Vec<MainBodyData>> {
@@ -246,6 +250,7 @@ mod tests {
         }
         "#;
         let body_data: MainBodyData = from_str(data).unwrap();
+        assert_eq!(OrbitingObjects::from(&body_data), OrbitingObjects(Vec::new()));
         assert_eq!(
             BodyData::from(body_data),
             BodyData {
@@ -253,7 +258,6 @@ mod tests {
                 name: "Moon".into(),
                 body_type: BodyType::Moon,
                 host_body: Some(id_from("terre")),
-                orbiting_bodies: Vec::new(),
                 semimajor_axis: 384400.,
                 eccentricity: 0.0549,
                 inclination: 5.145,
@@ -278,15 +282,15 @@ mod tests {
 
     #[test]
     fn test_fix_bodies() {
-        let bodies = read_main_bodies().unwrap();
-        let sun = bodies
+        let bodies_orbiting = read_main_bodies().unwrap();
+        let sun_orbiting = bodies_orbiting
             .iter()
-            .find(|data| data.id == id_from(SUN_ID))
+            .find(|data| data.0.id == id_from(SUN_ID))
             .unwrap();
-        assert!(sun.host_body.is_none());
-        for planet in bodies
+        assert!(sun_orbiting.0.host_body.is_none());
+        for (planet, _orbiting_obj) in bodies_orbiting
             .iter()
-            .filter(|data| matches!(data.body_type, BodyType::Planet))
+            .filter(|data| matches!(data.0.body_type, BodyType::Planet))
         {
             assert!(planet.host_body.is_some_and(|id| id == id_from(SUN_ID)))
         }
