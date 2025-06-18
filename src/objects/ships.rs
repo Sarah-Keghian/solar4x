@@ -9,6 +9,7 @@ use crate::game::{ClearOnUnload, Loaded};
 use crate::physics::influence::{HillRadius};
 use crate::physics::{leapfrog::get_acceleration, G};
 use crate::physics::prelude::*;
+use crate::objects::orbiting_obj::OrbitingObjects;
 
 use super::id::MAX_ID_LENGTH;
 use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
@@ -80,7 +81,8 @@ fn handle_ship_events(
     mut reader: EventReader<ShipEvent>,
     mut ships: ResMut<ShipsMapping>,
     mut error_writer: EventWriter<SwitchToOrbitalError>,
-    bodies: Query<(&Position, &HillRadius, &BodyInfo)>,
+    bodies: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
+    query_influenced: Query<(&Position, &HillRadius, &OrbitingObjects)>,
     mapping: Res<BodiesMapping>,
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
     ship_query: Query<(&Position, &Velocity, &Influenced)>,
@@ -92,7 +94,7 @@ fn handle_ship_events(
                 let pos = Position(info.spawn_pos);
                 ships.0.entry(info.id).or_insert({
                     let influence =
-                        Influenced::new(&pos, &bodies, mapping.as_ref(), main_body.single().0.id);
+                        Influenced::new(&pos, &query_influenced, mapping.as_ref(), main_body.single().0.id);
                     commands
                         .spawn((
                             info.clone(),
@@ -100,7 +102,7 @@ fn handle_ship_events(
                                 info.spawn_pos,
                                 bodies
                                     .iter_many(&influence.influencers)
-                                    .map(|(p, _, i)| (p.0, i.0.mass)),
+                                    .map(|(p, _, _,m)| (p.0, m.0)),
                             )),
                             influence,
                             pos,
@@ -288,7 +290,7 @@ mod tests {
         app.insert_resource(BodiesMapping(mapping));
 
         let mut state_mapping: SystemState<Res<BodiesMapping>> = SystemState::new(&mut app.world_mut());
-        let mut state_query: SystemState<Query<(&Position, &HillRadius, &BodyInfo)>> = SystemState::new(&mut app.world_mut());
+        let mut state_query: SystemState<Query<(&Position, &HillRadius, &OrbitingObjects)>> = SystemState::new(&mut app.world_mut());
         let (bodies_mapping, bodies) = {
             let world = app.world();
             (
@@ -299,11 +301,7 @@ mod tests {
 
         let pos = Position(info.spawn_pos); 
         let influence = Influenced::new(&pos, &bodies, bodies_mapping.as_ref(), id_from("soleil"));
-        let acceleration = Acceleration::new(get_acceleration(
-                                    info.spawn_pos,
-                                    bodies
-                                        .iter_many(&influence.influencers)
-                                        .map(|(p, _, i)| (p.0, i.0.mass))));
+        let acceleration = Acceleration{current: DVec3::ZERO, previous: DVec3::ZERO};
 
         let ship_entity = app.world_mut().spawn((
             info.clone(),
