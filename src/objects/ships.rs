@@ -206,7 +206,7 @@ mod tests {
     use super::*;
     use crate::objects::{
         bodies::body_data::{BodyData, BodyType},
-        orbital_obj::{OrbitingObjects, OrbitalObjID},
+        orbiting_obj::{OrbitingObjects, OrbitalObjID},
     };
     use bevy::ecs::system::SystemState;
     use crate::objects::id::id_from;

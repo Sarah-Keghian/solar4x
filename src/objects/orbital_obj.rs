@@ -3,7 +3,7 @@ use crate::objects::{ships, bodies};
 use crate::objects::bodies::main_bodies::MainBodyData;
 
 #[derive(PartialEq, Debug)]
-enum OrbitalObjID {
+pub(crate) enum OrbitalObjID {
     Body(bodies::BodyID),
     Ship(ships::ShipID),
 }
