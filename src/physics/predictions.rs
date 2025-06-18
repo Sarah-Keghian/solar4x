@@ -13,6 +13,7 @@ use super::{
     leapfrog::{get_acceleration, get_dv, get_dx},
     time::{GAMETIME_PER_SIMTICK, SIMTICKS_PER_TICK},
 };
+use crate::objects::orbiting_obj::{OrbitalObjID, OrbitingObjects};
 
 /// Number of client updates between two predictions
 pub const PREDICTIONS_STEP: usize = 20;
@@ -51,7 +52,7 @@ impl PredictionStart {
         let mut predictions = Vec::new();
         let simulated = simulated_from_influence(
             influence,
-            &mut bodies.transmute_lens::<&BodyInfo>(),
+            &mut bodies.transmute_lens::<&OrbitingObjects>(),
             mapping,
         );
         let mut map = simulated
@@ -123,7 +124,7 @@ impl PredictionStart {
                         let radius = map.get(&main_entity).unwrap().2;
                         let new_children = children_entities(
                             new_main,
-                            &mut bodies.transmute_lens::<&BodyInfo>(),
+                            &mut bodies.transmute_lens::<&OrbitingObjects>(),
                             mapping,
                         );
                         map.retain(|k, _| {
@@ -164,7 +165,7 @@ impl PredictionStart {
 
 fn simulated_from_influence(
     influence: &Influenced,
-    bodies: &mut QueryLens<&BodyInfo>,
+    bodies: &mut QueryLens<&OrbitingObjects>,
     bodies_mapping: &HashMap<BodyID, Entity>,
 ) -> Vec<Entity> {
     let mut v = influence.influencers.clone();
@@ -176,17 +177,22 @@ fn simulated_from_influence(
 
 fn children_entities(
     parent: Entity,
-    bodies: &mut QueryLens<&BodyInfo>,
+    objects: &mut QueryLens<&OrbitingObjects>,
     bodies_mapping: &HashMap<BodyID, Entity>,
 ) -> Vec<Entity> {
-    let query = bodies.query();
+    let query = objects.query();
     query
         .get(parent)
         .unwrap()
         .0
-        .orbiting_bodies
         .iter()
-        .filter_map(|id| bodies_mapping.get(id).cloned())
+        .filter_map(|orbital_obj| {
+            let id = match orbital_obj {
+                OrbitalObjID::Body(body_id) => body_id,
+                OrbitalObjID::Ship(ship_id) => ship_id,
+            };
+            bodies_mapping.get(id).cloned()
+        } )
         .collect()
 }
 
