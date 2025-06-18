@@ -35,7 +35,6 @@ pub struct BodyData {
     pub name: String,
     pub body_type: BodyType,
     pub host_body: Option<BodyID>,
-    pub orbiting_bodies: Vec<BodyID>,
 
     // Orbital elements
     pub semimajor_axis: f64,
