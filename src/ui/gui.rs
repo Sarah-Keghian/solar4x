@@ -19,6 +19,7 @@ use crate::{
         algebra::{center_to_periapsis_direction, ellipse_half_sizes},
         ui::EllipseBuilder,
     },
+    objects::orbiting_obj::{OrbitingObjects, OrbitalObjID},
 };
 
 use self::editor_gui::CurrentGizmo;
@@ -306,11 +307,13 @@ fn draw_gizmos(
         &Transform,
         &Velocity,
         &BodyInfo,
+        &OrbitingObjects,
         &HillRadius,
         &EllipticalOrbit,
     )>,
     ships: Query<(&Transform, &Velocity, &Influenced), With<ShipInfo>>,
-    mapping: Res<BodiesMapping>,
+    bodies_mapping: Res<BodiesMapping>,
+    ships_mapping: Res<ShipsMapping>,
 ) {
     let scale = MAX_HEIGHT as f64 / space_map.system_size;
     if let &SpaceMap {
@@ -319,7 +322,7 @@ fn draw_gizmos(
         ..
     } = space_map.as_ref()
     {
-        if let Ok((pos, _, info, _, _)) = bodies.get(s) {
+        if let Ok((pos, _, info, orbiting_obj, _, _)) = bodies.get(s) {
             // Display selection circle
             gizmos.circle_2d(
                 pos.translation.xy(),
@@ -331,11 +334,15 @@ fn draw_gizmos(
 
             // Display children orbits
             let parent_translation = pos.translation;
-            for &i in info
+            for &obj in orbiting_obj
                 .0
-                .orbiting_bodies
                 .iter()
-                .filter_map(|id| mapping.0.get(id))
+                .filter_map(|obj_id| {
+                    match obj_id {
+                        OrbitalObjID::Body(body_id) => {bodies_mapping.0.get(body_id)},
+                        OrbitalObjID::Ship(ship_id) => {ships_mapping.0.get(ship_id)},
+                    }
+                })
             {
                 let &EllipticalOrbit {
                     semimajor_axis: a,
@@ -346,7 +353,7 @@ fn draw_gizmos(
                     eccentric_anomaly: E,
                     revolution_period,
                     ..
-                } = bodies.get(i).unwrap().4;
+                } = bodies.get(obj).unwrap().5;
                 let (o, O, I, E) = (
                     o.to_radians(),
                     O.to_radians(),
@@ -382,7 +389,7 @@ fn draw_gizmos(
             }
         }
         // Display sphere of influence
-        for (pos, _, _, radius, _) in bodies.iter() {
+        for (pos, _, _, _, radius, _) in bodies.iter() {
             gizmos.circle_2d(
                 pos.translation.xy(),
                 (radius.0 * scale) as f32,
