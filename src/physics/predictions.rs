@@ -36,12 +36,14 @@ pub struct PredictionStart {
 
 impl PredictionStart {
     /// Compute the future positions of this point with respect to a given referential and considering some influencer's gravitationnal pull on it
+    #[allow(clippy::too_many_arguments)]
     pub fn compute_predictions(
         &self,
         number: usize,
         influence: &Influenced,
         reference: Option<Entity>,
         bodies: &mut QueryLens<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
+        orbiting: &mut QueryLens<&OrbitingObjects>,
         mapping: &HashMap<BodyID, Entity>,
         nodes: &BTreeMap<u64, ManeuverNode>,
     ) -> Vec<(DVec3, DVec3)> {
@@ -52,7 +54,7 @@ impl PredictionStart {
         let mut predictions = Vec::new();
         let simulated = simulated_from_influence(
             influence,
-            &mut bodies.transmute_lens::<&OrbitingObjects>(),
+            orbiting,
             mapping,
         );
         let mut map = simulated
@@ -266,8 +268,9 @@ mod tests {
             Res<BodiesMapping>,
             Query<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
             Query<(&Position, &Mass)>,
+            Query<&OrbitingObjects>,
         )> = SystemState::new(world);
-        let (mapping, mut bodies, query) = system_state.get(world);
+        let (mapping, mut bodies, query, mut orbiting) = system_state.get(world);
         let predictions = PredictionStart {
             pos,
             speed,
@@ -279,6 +282,7 @@ mod tests {
             &influence,
             Some(earth),
             &mut bodies.as_query_lens(),
+            &mut orbiting.as_query_lens(),
             &mapping.0,
             &BTreeMap::new(),
         );

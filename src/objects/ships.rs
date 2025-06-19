@@ -138,7 +138,7 @@ fn calc_elliptical_orbit(
     ship_query: &Query<(&Position, &Velocity, &Influenced)>,
     influencer_query: &Query<(&Position, &Velocity, &Mass), With<HillRadius>>
     ) -> Option<EllipticalOrbit> {
-    if let Some((r_vec, v_vec, mass)) = find_host_body(ship, ship_query, influencer_query) {
+    if let Some((r_vec, v_vec, mass)) = is_in_orbit(ship, ship_query, influencer_query) {
         let mu = G*mass.0;
         let v = v_vec.length();
         let r = r_vec.length();
@@ -180,29 +180,28 @@ fn calc_elliptical_orbit(
     }
 }
 
-fn find_host_body(
+fn is_in_orbit(
     ship: Entity, 
     ship_query: &Query<(&Position, &Velocity, &Influenced)>, 
     influencer_query: &Query<(&Position, &Velocity, &Mass), With<HillRadius>>) -> Option<(DVec3, DVec3, Mass)>
     {
-    if let Ok((ship_pos, ship_vel, influenced)) = ship_query.get(ship) {
-        for influencer in &influenced.influencers {
-            if let Ok((body_pos, body_vel, body_mass)) = influencer_query.get(*influencer) {
-                let r = ship_pos.0 - body_pos.0;
-                let v = ship_vel.0 - body_vel.0;
-                let h = r.cross(v);
-                let e_vec = v.cross(h)/G*body_mass.0 - r/r.length();
-                let e = e_vec.length();
-                if e >= 1.0 {
-                    return Some((r, v, *body_mass));
-                } else {
-                    continue;
-                }
-            }; 
-        }
-    };
-    None
+    let (ship_pos, ship_vel, influenced) = ship_query.get(ship).ok()?;
+    let main_influencer = influenced.main_influencer?;
+    let (body_pos, body_vel, body_mass) = influencer_query.get(main_influencer).ok()?;
+
+    let r = ship_pos.0 - body_pos.0;
+    let v = ship_vel.0 - body_vel.0;
+    let h = r.cross(v);
+    let e_vec = v.cross(h) / G * body_mass.0 - r / r.length();
+    let e = e_vec.length();
+
+    if e >= 1.0 {
+        Some((r, v, *body_mass))
+    } else {
+        None
+    }
 }
+
 
 #[cfg(test)]
 mod tests {
