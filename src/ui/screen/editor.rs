@@ -11,6 +11,7 @@ use ratatui::{
 use crate::{
     objects::ships::trajectory::ManeuverNode, physics::time::SIMTICKS_PER_TICK, prelude::*,
 };
+use crate::objects::orbiting_obj::{OrbitingObjects};
 
 use super::AppScreen;
 
@@ -176,7 +177,7 @@ fn create_screen(
     ships: Query<(&ShipInfo, &Position, &Velocity, &Influenced)>,
     ships_mapping: Res<ShipsMapping>,
     bodies_mapping: Res<BodiesMapping>,
-    bodies: Query<&BodyInfo>,
+    bodies: Query<(&BodyInfo, &OrbitingObjects)>,
     system_size: Res<SystemSize>,
     time: Res<GameTime>,
 ) {
