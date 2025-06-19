@@ -111,7 +111,8 @@ fn handle_ship_events(
             ShipEvent::SwitchToOrbital {ship_id, r_vec, v_vec, mass} => {
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
-                    commands.entity(*ship).insert(orbit);
+                    let orbiting_obj = OrbitingObjects(Vec::new());
+                    commands.entity(*ship).insert((orbit, orbiting_obj));
                     commands.entity(*ship).remove::<(Acceleration, Influenced)>();      
                 };
             }
