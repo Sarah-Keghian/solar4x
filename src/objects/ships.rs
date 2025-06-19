@@ -76,6 +76,7 @@ fn create_ships(mut commands: Commands) {
     commands.insert_resource(ShipsMapping::default());
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_ship_events(
     mut commands: Commands,
     mut reader: EventReader<ShipEvent>,
@@ -137,7 +138,7 @@ fn calc_elliptical_orbit(
     ship_query: &Query<(&Position, &Velocity, &Influenced)>,
     influencer_query: &Query<(&Position, &Velocity, &Mass), With<HillRadius>>
     ) -> Option<EllipticalOrbit> {
-    if let Some((r_vec, v_vec, mass)) = find_host_body(ship, &ship_query, &influencer_query) {
+    if let Some((r_vec, v_vec, mass)) = find_host_body(ship, ship_query, influencer_query) {
         let mu = G*mass.0;
         let v = v_vec.length();
         let r = r_vec.length();
@@ -175,7 +176,7 @@ fn calc_elliptical_orbit(
         })
     } 
     else {
-        return None; 
+        None 
     }
 }
 
@@ -289,13 +290,13 @@ mod tests {
         app.insert_resource(ShipsMapping::default());
         app.insert_resource(BodiesMapping(mapping));
 
-        let mut state_mapping: SystemState<Res<BodiesMapping>> = SystemState::new(&mut app.world_mut());
-        let mut state_query: SystemState<Query<(&Position, &HillRadius, &OrbitingObjects)>> = SystemState::new(&mut app.world_mut());
+        let mut state_mapping: SystemState<Res<BodiesMapping>> = SystemState::new(app.world_mut());
+        let mut state_query: SystemState<Query<(&Position, &HillRadius, &OrbitingObjects)>> = SystemState::new(app.world_mut());
         let (bodies_mapping, bodies) = {
             let world = app.world();
             (
-                state_mapping.get(&world),
-                state_query.get(&world)
+                state_mapping.get(world),
+                state_query.get(world)
             )
         };
 
@@ -315,7 +316,7 @@ mod tests {
 
         app.world_mut().resource_mut::<ShipsMapping>().0.insert(info.id, ship_entity);
 
-        return ship_entity;
+        ship_entity
     }
 
     #[test]

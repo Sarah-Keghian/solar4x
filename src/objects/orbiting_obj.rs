@@ -9,7 +9,7 @@ pub(crate) enum OrbitalObjID {
 }
 
 #[derive(Component, PartialEq, Debug, Clone)]
-pub(crate) struct OrbitingObjects(pub(crate) Vec<OrbitalObjID>);
+pub struct OrbitingObjects(pub(crate) Vec<OrbitalObjID>);
 
 impl From<&MainBodyData> for OrbitingObjects {
     fn from(value: &MainBodyData) -> Self {
@@ -21,7 +21,7 @@ impl From<&MainBodyData> for OrbitingObjects {
 
         let orbiting_obj = orbiting_bodies
             .iter()
-            .map(|body_id| {OrbitalObjID::Body(body_id.clone())})
+            .map(|body_id| {OrbitalObjID::Body(*body_id)})
             .collect::<Vec<_>>();
 
         Self(orbiting_obj)
