@@ -9,7 +9,10 @@ use crate::game::{ClearOnUnload, Loaded};
 use crate::physics::influence::{HillRadius};
 use crate::physics::{leapfrog::get_acceleration, G, time::TickEvent};
 use crate::physics::prelude::*;
-use crate::objects::orbiting_obj::OrbitingObjects;
+use crate::objects::{
+    orbiting_obj::{OrbitingObjects},
+    bodies::BodyID,
+};
 
 use super::id::MAX_ID_LENGTH;
 use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
@@ -42,9 +45,11 @@ impl Plugin for ShipsPlugin {
             .add_event::<ShipEvent>()
             .add_systems(Update, handle_ship_events.in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
-            .add_systems(FixedUpdate, check_ship_orbits.run_if(on_event::<TickEvent>()));
+            .add_systems(Update, check_ship_orbits.run_if(on_event::<TickEvent>()));
     }
 }
+#[derive(Component)]
+pub(crate) struct HostBody(pub BodyID);
 
 pub type ShipID = ArrayString<MAX_ID_LENGTH>;
 
@@ -68,13 +73,15 @@ pub enum ShipEvent {
 fn create_ships(mut commands: Commands) {
     commands.insert_resource(ShipsMapping::default());
 }
-
+#[allow(clippy::too_many_arguments)]
 fn handle_ship_events(
     mut commands: Commands,
     mut reader: EventReader<ShipEvent>,
     mut ships_mapping: ResMut<ShipsMapping>,
-    bodies: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
-    query_influenced: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    influencers_w_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
+    query_influencer: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    bodies: Query<&BodyInfo>,
+    query_influenced: Query<&Influenced>,
     mapping: Res<BodiesMapping>,
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
     ) {
@@ -84,13 +91,13 @@ fn handle_ship_events(
                 let pos = Position(info.spawn_pos);
                 ships_mapping.0.entry(info.id).or_insert({
                     let influence =
-                        Influenced::new(&pos, &query_influenced, mapping.as_ref(), main_body.single().0.id);
+                        Influenced::new(&pos, &query_influencer, mapping.as_ref(), main_body.single().0.id);
                     commands
                         .spawn((
                             info.clone(),
                             Acceleration::new(get_acceleration(
                                 info.spawn_pos,
-                                bodies
+                                influencers_w_mass
                                     .iter_many(&influence.influencers)
                                     .map(|(p, _, _,m)| (p.0, m.0)),
                             )),
@@ -112,12 +119,19 @@ fn handle_ship_events(
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
                     let orbiting_obj = OrbitingObjects(Vec::new());
-                    commands.entity(*ship).insert((orbit, orbiting_obj));
+                    let host_body = get_host_body(ship, &query_influenced, &bodies);
+                    commands.entity(*ship).insert((orbit, orbiting_obj, HostBody(host_body)));
                     commands.entity(*ship).remove::<(Acceleration, Influenced)>();      
                 };
             }
         }
     }
+}
+
+fn get_host_body(ship: &Entity, query_influenced: &Query<&Influenced>, bodies: &Query<&BodyInfo>) -> BodyID {
+    let influenced = query_influenced.get(*ship).unwrap();
+    let host_body = influenced.main_influencer.unwrap();
+    bodies.get(host_body).unwrap().0.id
 }
 
 fn calc_elliptical_orbit(
@@ -134,18 +148,18 @@ fn calc_elliptical_orbit(
     let e_vec = v_vec.cross(h)/mu - r_vec/r;
     let e = e_vec.length();
     let epsilon = v.powf(2.)/2. - mu/r;
-    let semimajor_axis = -mu/2.*epsilon;
+    let semimajor_axis = -mu / (2. * epsilon);
     let inclination = (h.z/h.length()).acos();
     let n_vec = DVec3::new(-h.y, h.x, 0.);
     let mut long_asc_node = (n_vec.x/n_vec.length()).acos();
     if n_vec.y < 0. {
         long_asc_node = 2.*PI - long_asc_node;
     }
-    let mut arg_periapsis = (n_vec.dot(r_vec)/e*r).acos();
+    let mut arg_periapsis = (n_vec.dot(e_vec) / (n_vec.length() * e)).acos();
     if e_vec.z < 0. {
         arg_periapsis = 2.*PI - arg_periapsis;
     }
-    let mut initial_mean_anomaly = (e_vec.dot(r_vec)/e*r).acos();
+    let mut initial_mean_anomaly = (e_vec.dot(r_vec) / (e * r)).acos();
     if r_vec.dot(v_vec) < 0. {
         initial_mean_anomaly = 2.*PI - initial_mean_anomaly;
     }
@@ -161,7 +175,7 @@ fn calc_elliptical_orbit(
         mean_anomaly: initial_mean_anomaly,
         ..Default::default()
     }
-    } 
+} 
 
 
 fn check_ship_orbits(
@@ -175,7 +189,7 @@ fn check_ship_orbits(
                 let r = pos.0 - inf_pos.0;
                 let v = vel.0 - inf_vel.0;
                 let h = r.cross(v);
-                let e_vec = v.cross(h)/G*inf_mass.0 - r/r.length();
+                let e_vec = (v.cross(h)) / (G * inf_mass.0) - r / r.length();                
                 let e = e_vec.length();
                 if e < 1.0 {
                     writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: Position(r), v_vec: Velocity(v), mass: *inf_mass});
@@ -191,10 +205,12 @@ mod tests {
     use crate::objects::{
         bodies::body_data::{BodyData, BodyType},
         orbiting_obj::{OrbitingObjects, OrbitalObjID},
+        id::id_from,
     };
     use bevy::ecs::system::SystemState;
-    use crate::objects::id::id_from;
-    
+    use crate::physics::SECONDS_PER_DAY;
+    const TWO_PI: f64 = std::f64::consts::TAU; 
+
     
     fn setup(app: &mut App, info: &ShipInfo) -> Entity {
 
@@ -348,6 +364,55 @@ mod tests {
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
         assert!(orbit.is_none(), "Le vaisseau ne devrait pas avoir de composant EllipticalOrbit");
+
+    }
+
+    #[test]
+    fn test_calc_elliptical_orbit() {
+    // r and v found at https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=399&CENTER=%27@sun%27&EPHEM_TYPE=VECTORS&START_TIME=%272000-01-01%27&STOP_TIME=%272000-01-02%27&STEP_SIZE=%271%20d%27&OUT_UNITS=KM-S
+    let r_vec = DVec3::new(
+    -2.521092855899356e7,
+    1.449279195838006e8,
+    -6.164165719002485e2,
+    );
+    let v_vec = DVec3::new(
+        -29.83983333677879,
+        -5.207633902410673,
+        6.16844118423998e-05,
+    )* SECONDS_PER_DAY;
+
+    let earth_mass = 1.9885e30;
+
+    let orbit = calc_elliptical_orbit(
+        Position(r_vec),
+        Velocity(v_vec),
+        Mass(earth_mass),
+    );
+    let semimajor =  149598023.;
+    let eccentricity = 0.01670;
+    let inclination = 0.;
+    let long_asc_node = 18.272;
+    let arg_periapsis = 85.901;
+    // let initial_mean_anomaly = 358.617;
+    let revolution_period = 365.256;
+
+    let tolerance_prct = 0.2;
+    let epsilon = 1e-5;
+
+    fn normalize_angle(angle: f64) -> f64 {
+        let mut a = angle % TWO_PI;
+        if a < 0.0 {
+            a += TWO_PI;
+        }
+        a
+    }
+
+    assert!((orbit.semimajor_axis - semimajor).abs() < tolerance_prct * semimajor);
+    assert!((orbit.eccentricity - eccentricity).abs() < eccentricity * tolerance_prct);
+    assert!((orbit.inclination - inclination).abs() < epsilon);
+    assert!((normalize_angle(orbit.long_asc_node) - normalize_angle(long_asc_node)).abs() < long_asc_node * tolerance_prct);
+    assert!((normalize_angle(orbit.arg_periapsis) - normalize_angle(arg_periapsis)).abs() < arg_periapsis * tolerance_prct);
+    assert!((orbit.revolution_period - revolution_period).abs() < revolution_period * tolerance_prct);
 
     }
 }
