@@ -12,7 +12,7 @@ pub mod orbit;
 pub mod predictions;
 pub mod time;
 
-const SECONDS_PER_DAY: f64 = 24. * 3600.;
+pub const SECONDS_PER_DAY: f64 = 24. * 3600.;
 
 /// Gravitationnal constant in km3kg-1d-2
 pub const G: f64 = 6.6743e-11 * SECONDS_PER_DAY * SECONDS_PER_DAY * 1e-9;
