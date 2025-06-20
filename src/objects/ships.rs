@@ -74,33 +74,42 @@ fn create_ships(mut commands: Commands) {
     commands.insert_resource(ShipsMapping::default());
 }
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)]
 fn handle_ship_events(
     mut commands: Commands,
     mut reader: EventReader<ShipEvent>,
     mut ships_mapping: ResMut<ShipsMapping>,
-    query_influencer: Query<(&Position, &HillRadius, &OrbitingObjects)>,
-    mut host_bodies: Query<&mut OrbitingObjects>,
-    influencers_w_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
+    mut param: ParamSet<(
+        Query<(&Position, &HillRadius, &OrbitingObjects)>, 
+        Query<&mut OrbitingObjects>,                       
+        Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>, 
+    )>,
     bodies: Query<&BodyInfo>,
     query_influenced: Query<&Influenced>,
     mapping: Res<BodiesMapping>,
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
-    ) {
+) {
     for event in reader.read() {
         match event {
             ShipEvent::Create(info) => {
                 let pos = Position(info.spawn_pos);
+
                 ships_mapping.0.entry(info.id).or_insert({
-                    let influence =
-                        Influenced::new(&pos, &query_influencer, mapping.as_ref(), main_body.single().0.id);
+                    let influence = Influenced::new(
+                        &pos,
+                        &param.p0(),
+                        mapping.as_ref(),
+                        main_body.single().0.id,
+                    );
+
                     commands
                         .spawn((
                             info.clone(),
                             Acceleration::new(get_acceleration(
                                 info.spawn_pos,
-                                influencers_w_mass
+                                param.p2() 
                                     .iter_many(&influence.influencers)
-                                    .map(|(p, _, _,m)| (p.0, m.0)),
+                                    .map(|(p, _, _, m)| (p.0, m.0)),
                             )),
                             influence,
                             pos,
@@ -116,16 +125,24 @@ fn handle_ship_events(
                     commands.entity(e).despawn()
                 }
             }
-            ShipEvent::SwitchToOrbital {ship_id, r_vec, v_vec, mass} => {
+            ShipEvent::SwitchToOrbital {
+                ship_id,
+                r_vec,
+                v_vec,
+                mass,
+            } => {
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
                     let orbiting_obj = OrbitingObjects(Vec::new());
                     let host_body_id = get_host_body(ship, &query_influenced, &bodies);
                     let host_entity = mapping.0.get(&host_body_id).unwrap();
-                    let mut host_orbiting_obj = host_bodies.get_mut(*host_entity).unwrap();
+                    let mut host_bodies = param.p1();
+                    let mut host_orbiting_obj = host_bodies.get_mut(*host_entity).unwrap();                    
                     host_orbiting_obj.0.push(OrbitalObjID::Ship(*ship_id));
-                    commands.entity(*ship).insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
-                    commands.entity(*ship).remove::<(Acceleration, Influenced)>();      
+                    commands
+                        .entity(*ship)
+                        .insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
+                    commands.entity(*ship).remove::<(Acceleration, Influenced)>();
                 };
             }
         }
