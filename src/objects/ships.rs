@@ -10,7 +10,7 @@ use crate::physics::influence::{HillRadius};
 use crate::physics::{leapfrog::get_acceleration, G, time::TickEvent};
 use crate::physics::prelude::*;
 use crate::objects::{
-    orbiting_obj::{OrbitingObjects},
+    orbiting_obj::{OrbitingObjects, OrbitalObjID},
     bodies::BodyID,
 };
 
@@ -78,8 +78,9 @@ fn handle_ship_events(
     mut commands: Commands,
     mut reader: EventReader<ShipEvent>,
     mut ships_mapping: ResMut<ShipsMapping>,
-    influencers_w_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
     query_influencer: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    mut host_bodies: Query<&mut OrbitingObjects>,
+    influencers_w_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>,
     bodies: Query<&BodyInfo>,
     query_influenced: Query<&Influenced>,
     mapping: Res<BodiesMapping>,
@@ -119,8 +120,11 @@ fn handle_ship_events(
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
                     let orbiting_obj = OrbitingObjects(Vec::new());
-                    let host_body = get_host_body(ship, &query_influenced, &bodies);
-                    commands.entity(*ship).insert((orbit, orbiting_obj, HostBody(host_body)));
+                    let host_body_id = get_host_body(ship, &query_influenced, &bodies);
+                    let host_entity = mapping.0.get(&host_body_id).unwrap();
+                    let mut host_orbiting_obj = host_bodies.get_mut(*host_entity).unwrap();
+                    host_orbiting_obj.0.push(OrbitalObjID::Ship(*ship_id));
+                    commands.entity(*ship).insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
                     commands.entity(*ship).remove::<(Acceleration, Influenced)>();      
                 };
             }
