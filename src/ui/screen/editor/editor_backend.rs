@@ -311,7 +311,7 @@ fn update_temp_predictions(
     predictions_number: Res<NumberOfPredictions>,
     query: Query<(&Acceleration, &Influenced)>,
     mut bodies: Query<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
-    mut orbiting: Query<&OrbitingObjects>,
+    orbiting: Query<&OrbitingObjects>,
     bodies_mapping: Res<BodiesMapping>,
     mut coords: Query<(&mut Position, &mut Velocity), With<TempPrediction>>,
     space_map: Res<SpaceMap>,
@@ -334,7 +334,7 @@ fn update_temp_predictions(
         influence,
         reference,
         &mut bodies.as_query_lens(),
-        &mut orbiting.as_query_lens(),
+        &orbiting,
         &bodies_mapping.0,
         &nodes,
     );
