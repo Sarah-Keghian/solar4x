@@ -19,7 +19,9 @@ use crate::{
         algebra::{center_to_periapsis_direction, ellipse_half_sizes},
         ui::EllipseBuilder,
     },
-    objects::orbiting_obj::{OrbitingObjects, OrbitalObjID},
+    objects::{
+        orbiting_obj::{OrbitingObjects, OrbitalObjID},
+    },
 };
 
 use self::editor_gui::CurrentGizmo;
@@ -34,6 +36,22 @@ pub mod editor_gui;
 pub const MAX_HEIGHT: f32 = 100000.;
 const MIN_RADIUS: f32 = 1e-4;
 const SCROLL_SENSITIVITY: f32 = 10.;
+
+
+use std::fs::OpenOptions;
+use std::io::Write;
+
+pub fn debug_to_file<T: std::fmt::Display>(msg: &str, value: T) {
+    let mut file = OpenOptions::new()
+        .create(true)             
+        .append(true)             
+        .open("logs.txt")           
+        .unwrap();
+
+    let full_msg = format!("{} - value: {}", msg, value);
+    writeln!(file, "{}", full_msg).unwrap();
+} 
+
 pub struct GuiPlugin;
 
 impl Plugin for GuiPlugin {
@@ -156,7 +174,7 @@ pub fn color_setup(mut commands: Commands, mut materials: ResMut<Assets<Standard
         other: materials.add(Color::Srgba(DARK_GRAY)),
     };
     commands.insert_resource(colors);
-}
+} 
 
 fn insert_display_components(
     mut commands: Commands,
@@ -167,6 +185,7 @@ fn insert_display_components(
     system_size: Res<SystemSize>,
 ) {
     let scale = MAX_HEIGHT as f64 / system_size.0;
+
     bodies.iter().for_each(|(e, BodyInfo(data))| {
         let material = match data.body_type {
             BodyType::Star => colors.stars.clone(),
@@ -300,6 +319,7 @@ fn update_transform(system_size: Res<SystemSize>, mut query: Query<(&mut Transfo
 }
 
 #[allow(non_snake_case)]
+#[allow(clippy::too_many_arguments)]
 fn draw_gizmos(
     space_map: Res<SpaceMap>,
     mut gizmos: Gizmos,
@@ -309,8 +329,10 @@ fn draw_gizmos(
         &BodyInfo,
         &OrbitingObjects,
         &HillRadius,
-        &EllipticalOrbit,
-    )>,
+    ), With<BodyInfo>>,
+    influence_query: Query<(&Transform, &HillRadius)>,
+    orbit_query: Query<&EllipticalOrbit>,
+    // orbital_ships: Query<(&Transform, &Velocity, &EllipticalOrbit, &HostBody), With<ShipInfo>>,
     ships: Query<(&Transform, &Velocity, &Influenced), With<ShipInfo>>,
     bodies_mapping: Res<BodiesMapping>,
     ships_mapping: Res<ShipsMapping>,
@@ -322,7 +344,7 @@ fn draw_gizmos(
         ..
     } = space_map.as_ref()
     {
-        if let Ok((pos, _, info, orbiting_obj, _, _)) = bodies.get(s) {
+        if let Ok((pos, _, info, orbiting_obj, _)) = bodies.get(s) {
             // Display selection circle
             gizmos.circle_2d(
                 pos.translation.xy(),
@@ -344,7 +366,7 @@ fn draw_gizmos(
                     }
                 })
             {
-                let &EllipticalOrbit {
+                if let Ok(&EllipticalOrbit {
                     semimajor_axis: a,
                     inclination: I,
                     long_asc_node: O,
@@ -353,65 +375,69 @@ fn draw_gizmos(
                     eccentric_anomaly: E,
                     revolution_period,
                     ..
-                } = bodies.get(obj).unwrap().5;
-                let (o, O, I, E) = (
+                }) = orbit_query.get(obj) 
+                {
+                    let (o, O, I, E) = (
                     o.to_radians(),
                     O.to_radians(),
                     I.to_radians(),
                     E.to_radians(),
-                );
-                let peri = (1. - e) * a;
-                // if let Some(radius) = viewable_radius(cam) {
-                //     let distance_to_parent = (cam_pos.translation() - parent_translation).length();
-                //     if distance_to_parent + radius < (peri * scale) as f32
-                //         || distance_to_parent - radius > (apo * scale) as f32
-                //     {
-                //         continue;
-                //     }
-                // }
-                let position =
-                    (scale * (peri - a) * center_to_periapsis_direction(o, O, I).normalize())
-                        .as_vec3()
-                        + parent_translation;
-                let resolution = ((zoom_level * 100.) as usize).min(1000);
-                EllipseBuilder {
-                    position,
-                    rotation: Quat::from_rotation_z(O as f32)
-                        * Quat::from_rotation_x(I as f32)
-                        * Quat::from_rotation_z(o as f32),
-                    half_size: (ellipse_half_sizes(a, e) * scale).as_vec2(),
-                    color: Color::WHITE.with_alpha(0.1),
-                    resolution,
-                    initial_angle: E as f32,
-                    sign: -revolution_period.signum() as f32,
-                }
-                .draw(&mut gizmos);
+                    );
+                    let peri = (1. - e) * a;
+                    // if let Some(radius) = viewable_radius(cam) {
+                    //     let distance_to_parent = (cam_pos.translation() - parent_translation).length();
+                    //     if distance_to_parent + radius < (peri * scale) as f32
+                    //         || distance_to_parent - radius > (apo * scale) as f32
+                    //     {
+                    //         continue;
+                    //     }
+                    // }
+                    let position =
+                        (scale * (peri - a) * center_to_periapsis_direction(o, O, I).normalize())
+                            .as_vec3()
+                            + parent_translation;
+                        
+                    let resolution = ((zoom_level * 100.) as usize).min(1000);
+                    EllipseBuilder {
+                        position,
+                        rotation: Quat::from_rotation_z(O as f32)
+                            * Quat::from_rotation_x(I as f32)
+                            * Quat::from_rotation_z(o as f32),
+                        half_size: (ellipse_half_sizes(a, e) * scale).as_vec2(),
+                        color: Color::WHITE.with_alpha(0.1),
+                        resolution,
+                        initial_angle: E as f32,
+                        sign: -revolution_period.signum() as f32,
+                    }
+                    .draw(&mut gizmos);
+                }       
             }
-        }
-        // Display sphere of influence
-        for (pos, _, _, _, radius, _) in bodies.iter() {
-            gizmos.circle_2d(
-                pos.translation.xy(),
-                (radius.0 * scale) as f32,
-                Color::srgba(1., 0.1, 0.1, 0.1),
-            );
-        }
-
-        // Display ships
-        for (t, speed, influence) in ships.iter() {
-            let ref_speed = influence
-                .main_influencer
-                .map_or(DVec3::ZERO, |e| bodies.get(e).unwrap().1 .0);
-            let speed = ((speed.0 - ref_speed).normalize_or(DVec3::X) * MAX_HEIGHT as f64
-                / (30. * zoom_level))
-                .xy()
-                .as_vec2();
-            let t = t.translation.xy() - speed / 3.;
-            let perp = speed.perp() / 3.;
-            gizmos.linestrip_2d(
-                [t + speed, t + perp, t - perp, t + speed],
-                Color::Srgba(GOLD),
-            );
+            // Display sphere of influence
+            for (pos, radius) in influence_query.iter() {
+                gizmos.circle_2d(
+                    pos.translation.xy(),
+                    (radius.0 * scale) as f32,
+                    Color::srgba(1., 0.1, 0.1, 0.1),
+                );
+            }
+            // Display ships
+            for (t, speed, influence) in ships.iter() {
+                // debug_to_file("raw speed", speed.0);
+                let ref_speed = influence
+                    .main_influencer
+                    .map_or(DVec3::ZERO, |e| bodies.get(e).unwrap().1 .0);
+                let speed = ((speed.0 - ref_speed).normalize_or(DVec3::X) * MAX_HEIGHT as f64
+                    / (30. * zoom_level))
+                    .xy()
+                    .as_vec2();
+                // debug_to_file("position xy: ", t.translation.xy());
+                let t = t.translation.xy() - speed / 3.;
+                let perp = speed.perp() / 3.;
+                gizmos.linestrip_2d(
+                    [t + speed, t + perp, t - perp, t + speed],
+                    Color::Srgba(GOLD),
+                );
+            }
         }
     }
 }
