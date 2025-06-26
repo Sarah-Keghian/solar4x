@@ -43,6 +43,7 @@ impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(trajectory::plugin)
             .add_event::<ShipEvent>()
+            .add_event::<SpawnShipMesh>()
             .add_systems(Update, handle_ship_events.in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
             .add_systems(Update, check_ship_orbits.run_if(on_event::<TickEvent>()));
@@ -73,11 +74,16 @@ pub enum ShipEvent {
 fn create_ships(mut commands: Commands) {
     commands.insert_resource(ShipsMapping::default());
 }
+
+#[derive(Event)]
+pub(crate) struct SpawnShipMesh(pub(crate) Entity);
+
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
 fn handle_ship_events(
     mut commands: Commands,
     mut reader: EventReader<ShipEvent>,
+    mut spawn_ship_mesh_writer: EventWriter<SpawnShipMesh>,
     mut ships_mapping: ResMut<ShipsMapping>,
     mut param: ParamSet<(
         Query<(&Position, &HillRadius, &OrbitingObjects)>, 
@@ -102,7 +108,7 @@ fn handle_ship_events(
                         main_body.single().0.id,
                     );
 
-                    commands
+                    let entity = commands
                         .spawn((
                             info.clone(),
                             Acceleration::new(get_acceleration(
@@ -117,7 +123,9 @@ fn handle_ship_events(
                             TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
                             ClearOnUnload,
                         ))
-                        .id()
+                        .id();
+                    spawn_ship_mesh_writer.send(SpawnShipMesh(entity));
+                    entity
                 });
             }
             ShipEvent::Remove(id) => {

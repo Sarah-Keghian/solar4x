@@ -8,7 +8,12 @@ use bevy::{
     },
     math::{DVec2, DVec3},
     prelude::*,
-    render::camera::ScalingMode,
+    render::{
+        camera::ScalingMode,
+        mesh::{Indices, Mesh},
+        render_asset::RenderAssetUsages,
+        render_resource::PrimitiveTopology,
+    },
     window::PrimaryWindow,
 };
 
@@ -21,6 +26,8 @@ use crate::{
     },
     objects::{
         orbiting_obj::{OrbitingObjects, OrbitalObjID},
+        ships::SpawnShipMesh,
+        ObjectsUpdate,
     },
 };
 
@@ -80,6 +87,7 @@ impl Plugin for GuiPlugin {
                     .run_if(resource_exists::<SpaceMap>)
                     .run_if(in_state(Loaded)),
             )
+            .add_systems(Update, spawn_ship_meshes.after(ObjectsUpdate))
             .add_systems(
                 Update,
                 (
@@ -142,6 +150,7 @@ pub struct Colors {
     stars: Handle<StandardMaterial>,
     planets: Handle<StandardMaterial>,
     other: Handle<StandardMaterial>,
+    ships: Handle<StandardMaterial>
 }
 
 pub fn camera_setup(mut commands: Commands) {
@@ -172,15 +181,20 @@ pub fn color_setup(mut commands: Commands, mut materials: ResMut<Assets<Standard
         }),
         planets: materials.add(Color::Srgba(TEAL)),
         other: materials.add(Color::Srgba(DARK_GRAY)),
+        ships: materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 1.0, 0.1),
+            emissive: Color::srgb(0.8, 0.8, 0.0).into(),
+            ..default()
+        }),
     };
     commands.insert_resource(colors);
-} 
+}
 
 fn insert_display_components(
     mut commands: Commands,
-    bodies: Query<(Entity, &BodyInfo)>,
-    ships: Query<Entity, With<ShipInfo>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    bodies: Query<(Entity, &BodyInfo)>,
+    // orbital_ships: Query<Entity, (With<ShipInfo>, With<EllipticalOrbit>)>,
     colors: Res<Colors>,
     system_size: Res<SystemSize>,
 ) {
@@ -224,8 +238,89 @@ fn insert_display_components(
             });
         }
     });
-    for e in ships.iter() {
-        commands.entity(e).insert(TransformBundle::default());
+}
+
+fn point_to_local_speed(
+    ship: Entity,
+    speed_influenced_query: &Query<(&Velocity, &Influenced), With<ShipInfo>>,
+    influencer_speeds: &Query<&Velocity, With<OrbitingObjects>>
+) -> Vec3 {
+    let (speed, influenced) = speed_influenced_query.get(ship).unwrap();
+        let main_influencer = influenced.main_influencer.unwrap();
+        let speed_ref = influencer_speeds.get(main_influencer).unwrap();
+        speed.0.as_vec3() - speed_ref.0.as_vec3()
+}
+
+fn create_mesh() -> Mesh {
+    let positions = [
+        Vec3::new(0., 0., -0.7), // pointe (vers -z)
+        Vec3::new(0.2, -0.2, 0.), // coin bas droite (base)
+        Vec3::new(0.2, 0.2, 0.), // coin haut droite du carré (base)
+        Vec3::new(-0.2, 0.2, 0.), // coin haut gauche du carré (base)
+        Vec3::new(-0.2, -0.2, 0.), // coin bas gauche (base)  
+    ];
+
+    let faces = vec![
+        [0, 2, 1],
+        [0, 3, 2],
+        [0, 1, 4],
+        [0, 4, 3],
+        [2, 4, 1],  [4, 2, 3],
+    ];
+
+    let mut normals: Vec<_> = Vec::new();
+    let mut final_pos: Vec<_> = Vec::new();
+    for &face in &faces {
+        let a = positions[face[0]];
+        let b = positions[face[1]];
+        let c = positions[face[2]];
+
+        let ab = b-a;
+        let ac = c-a;
+
+        final_pos.push(a.to_array());
+        final_pos.push(b.to_array());
+        final_pos.push(c.to_array());
+
+        let normal = ab.cross(ac).normalize();
+        normals.push(normal.to_array());
+        normals.push(normal.to_array());
+        normals.push(normal.to_array());
+    }
+
+    let indices = (0..final_pos.len() as u32).collect::<Vec<u32>>();
+
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, final_pos);
+
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_indices(Indices::U32(indices));
+
+    mesh
+} 
+
+fn spawn_ship_meshes(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut spawn_ship_mesh_reader: EventReader<SpawnShipMesh>,
+    speed_influenced_query: Query<(&Velocity, &Influenced), With<ShipInfo>>,
+    influencer_speeds: Query<&Velocity, With<OrbitingObjects>>,
+    colors: Res<Colors>,
+    ) {
+    for SpawnShipMesh(ship) in spawn_ship_mesh_reader.read() {
+        let material = colors.ships.clone();
+        let mesh = create_mesh();
+        let local_speed = point_to_local_speed(*ship, &speed_influenced_query, &influencer_speeds);
+        commands.entity(*ship).insert(
+        PbrBundle {
+                mesh: meshes.add(mesh),
+                material,
+                transform: Transform {
+                    ..default()
+                }.looking_at(local_speed, Vec3::Y),
+                ..default()
+            },
+        );
     }
 }
 
@@ -332,8 +427,7 @@ fn draw_gizmos(
     ), With<BodyInfo>>,
     influence_query: Query<(&Transform, &HillRadius)>,
     orbit_query: Query<&EllipticalOrbit>,
-    // orbital_ships: Query<(&Transform, &Velocity, &EllipticalOrbit, &HostBody), With<ShipInfo>>,
-    ships: Query<(&Transform, &Velocity, &Influenced), With<ShipInfo>>,
+    // ships: Query<(&Transform, &Velocity, &Influenced), With<ShipInfo>>,
     bodies_mapping: Res<BodiesMapping>,
     ships_mapping: Res<ShipsMapping>,
 ) {
@@ -377,6 +471,7 @@ fn draw_gizmos(
                     ..
                 }) = orbit_query.get(obj) 
                 {
+                    debug_to_file("periode de revolution", revolution_period);
                     let (o, O, I, E) = (
                     o.to_radians(),
                     O.to_radians(),
@@ -421,23 +516,23 @@ fn draw_gizmos(
                 );
             }
             // Display ships
-            for (t, speed, influence) in ships.iter() {
-                // debug_to_file("raw speed", speed.0);
-                let ref_speed = influence
-                    .main_influencer
-                    .map_or(DVec3::ZERO, |e| bodies.get(e).unwrap().1 .0);
-                let speed = ((speed.0 - ref_speed).normalize_or(DVec3::X) * MAX_HEIGHT as f64
-                    / (30. * zoom_level))
-                    .xy()
-                    .as_vec2();
-                // debug_to_file("position xy: ", t.translation.xy());
-                let t = t.translation.xy() - speed / 3.;
-                let perp = speed.perp() / 3.;
-                gizmos.linestrip_2d(
-                    [t + speed, t + perp, t - perp, t + speed],
-                    Color::Srgba(GOLD),
-                );
-            }
+            // for (t, speed, influence) in ships.iter() {
+            //     // debug_to_file("raw speed", speed.0);
+            //     let ref_speed = influence
+            //         .main_influencer
+            //         .map_or(DVec3::ZERO, |e| bodies.get(e).unwrap().1 .0);
+            //     let speed = ((speed.0 - ref_speed).normalize_or(DVec3::X) * MAX_HEIGHT as f64
+            //         / (30. * zoom_level))
+            //         .xy()
+            //         .as_vec2();
+            //     // debug_to_file("position xy: ", t.translation.xy());
+            //     let t = t.translation.xy() - speed / 3.;
+            //     let perp = speed.perp() / 3.;
+            //     gizmos.linestrip_2d(
+            //         [t + speed, t + perp, t - perp, t + speed],
+            //         Color::Srgba(GOLD),
+            //     );
+            // }
         }
     }
 }
