@@ -172,13 +172,20 @@ fn calc_elliptical_orbit(
     let semimajor_axis = -mu / (2. * epsilon);
     let inclination = (h.z/h.length()).acos();
     let n_vec = DVec3::new(-h.y, h.x, 0.);
-    let mut long_asc_node = (n_vec.x/n_vec.length()).acos();
-    if n_vec.y < 0. {
-        long_asc_node = 2.*PI - long_asc_node;
-    }
-    let mut arg_periapsis = (n_vec.dot(e_vec) / (n_vec.length() * e)).acos();
-    if e_vec.z < 0. {
-        arg_periapsis = 2.*PI - arg_periapsis;
+    let mut long_asc_node;
+    let mut arg_periapsis;
+    if n_vec == DVec3::ZERO {
+        long_asc_node = 0.;
+        arg_periapsis = 0.;
+    } else {
+        long_asc_node = (n_vec.x/n_vec.length()).acos();
+        if n_vec.y < 0. {
+            long_asc_node = 2.*PI - long_asc_node;
+        }
+        arg_periapsis = (n_vec.dot(e_vec) / (n_vec.length() * e)).acos();
+        if e_vec.z < 0. {
+            arg_periapsis = 2.*PI - arg_periapsis;
+        }
     }
     let mut initial_mean_anomaly = (e_vec.dot(r_vec) / (e * r)).acos();
     if r_vec.dot(v_vec) < 0. {
