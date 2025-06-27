@@ -13,6 +13,7 @@ use crate::objects::{
     orbiting_obj::{OrbitingObjects, OrbitalObjID},
     bodies::BodyID,
 };
+use crate::ui::gui::debug_to_file;
 
 use super::id::MAX_ID_LENGTH;
 use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
@@ -226,7 +227,9 @@ fn check_ship_orbits(
                 let h = r.cross(v);
                 let e_vec = (v.cross(h)) / (G * inf_mass.0) - r / r.length();                
                 let e = e_vec.length();
+                debug_to_file("eccentricity", e);
                 if e < 1.0 {
+                    debug_to_file("in orbit", "!");
                     writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: Position(r), v_vec: Velocity(v), mass: *inf_mass});
                 }
             }
@@ -364,9 +367,8 @@ mod tests {
         let ship_entity = setup(&mut app, &info);
 
         app.add_systems(Update, handle_ship_events);
-
-        app.world_mut().resource_mut::<Events<ShipEvent>>()
-            .send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: Position(info.spawn_pos), v_vec: Velocity(info.spawn_speed), mass: Mass(5.97237e24)});
+        app.add_systems(Update, check_ship_orbits);
+        app.add_event::<ShipEvent>();
 
         app.update();
 
@@ -386,16 +388,18 @@ mod tests {
         //     spawn_speed: DVec3 { x: -2304513.078405577, y: -1267321.762409748, z: 0. } 
         // };
         
-        //Vaisseau dans le rayon de Hill mais pas en orbite 
+        // Vaisseau dans le rayon de Hill mais pas en orbite 
         let info = ShipInfo {
             id: ShipID::from("s2").unwrap(),
             spawn_pos: DVec3 { x: -2522401.726568888, y: 142515717.88224745, z: 0.},
-            spawn_speed: DVec3 { x: -2522401.726568888, y: -544246.5886227646, z: 0. } 
+            spawn_speed: DVec3 { x: -25224010.7265688, y: -544246.5886227646, z: 0. } 
         };
-
         let ship_entity = setup(&mut app, &info);
 
         app.add_systems(Update, handle_ship_events);
+        app.add_systems(Update, check_ship_orbits);
+
+        app.update();
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
         assert!(orbit.is_none(), "Le vaisseau ne devrait pas avoir de composant EllipticalOrbit");
