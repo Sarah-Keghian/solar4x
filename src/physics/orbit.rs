@@ -135,25 +135,24 @@ pub fn update_local(mut orbits: Query<&mut EllipticalOrbit>, time: Res<GameTime>
 pub fn update_global(
     mut query: Query<(&mut Position, &mut Velocity, &EllipticalOrbit, &OrbitingObjects)>,
     primary: Query<&BodyInfo, With<PrimaryBody>>,
-    mapping: Res<BodiesMapping>,
+    bodies_mapping: Res<BodiesMapping>,
+    ships_mapping: Res<ShipsMapping>,
 ) {
-    let mut queue = vec![(primary.single().0.id, (DVec3::ZERO, DVec3::ZERO))];
+    let mut queue = vec![(OrbitalObjID::Body(primary.single().0.id), (DVec3::ZERO, DVec3::ZERO))];
     let mut i = 0;
     while i < queue.len() {
-        let (id, (parent_pos, parent_velocity)) = queue[i];
-        if let Some(entity) = mapping.0.get(&id) {
+        let (orbital_obj_id, (parent_pos, parent_velocity)) = &queue[i];
+        let option_entity =  match orbital_obj_id {
+            OrbitalObjID::Body(body_id) => bodies_mapping.0.get(body_id),
+            OrbitalObjID::Ship(ship_id) => ships_mapping.0.get(ship_id),
+        };
+        if let Some(entity) = option_entity {
             if let Ok((mut world_pos, mut world_velocity, orbit, OrbitingObjects(orbiting))) = query.get_mut(*entity) {
-                let pos = parent_pos + orbit.local_pos;
-                let velocity = parent_velocity + orbit.local_speed;
+                let pos = *parent_pos + orbit.local_pos;
+                let velocity = *parent_velocity + orbit.local_speed;
                 world_pos.0 = pos;
                 world_velocity.0 = velocity;
-                queue.extend(orbiting.iter().map(|c| {
-                    let id = match c {
-                        OrbitalObjID::Body(body_id) => body_id,
-                        OrbitalObjID::Ship(ship_id) => ship_id,
-                    };
-                    (*id, (pos, velocity))
-                }));
+                queue.extend(orbiting.iter().map(|o_id| (o_id.clone(), (pos, velocity))));
             }
         }
         i += 1;
