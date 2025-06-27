@@ -155,6 +155,7 @@ fn get_host_body(ship: &Entity, query_influenced: &Query<&Influenced>, bodies: &
     bodies.get(host_body).unwrap().0.id
 }
 
+#[allow(non_snake_case)]
 fn calc_elliptical_orbit(
     r_vec: Position, 
     v_vec: Velocity, 
@@ -187,10 +188,16 @@ fn calc_elliptical_orbit(
             arg_periapsis = 2.*PI - arg_periapsis;
         }
     }
-    let mut initial_mean_anomaly = (e_vec.dot(r_vec) / (e * r)).acos();
-    if r_vec.dot(v_vec) < 0. {
-        initial_mean_anomaly = 2.*PI - initial_mean_anomaly;
+    
+    let mut true_anomaly = (e_vec.dot(r_vec) / (e * r)).acos();
+    if r_vec.dot(v_vec) < 0.0 {
+        true_anomaly = 2.0 * PI - true_anomaly;
     }
+    let tan_half_E = ((1.0 - e) / (1.0 + e)).sqrt() * (true_anomaly / 2.0).tan();
+    let E = 2.0 * tan_half_E.atan();
+
+    let initial_mean_anomaly = E - e * E.sin();
+
     let revolution_period = 2.*PI*(semimajor_axis.powf(3.)/mu).powf(0.5);
     EllipticalOrbit {
         eccentricity: e,
