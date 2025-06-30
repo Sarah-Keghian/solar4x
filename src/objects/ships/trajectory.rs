@@ -285,12 +285,11 @@ mod tests {
         state::state::NextState,
     };
 
-    use crate::{objects::ships::ShipEvent, physics::time::SIMTICKS_PER_TICK, prelude::*};
+    use crate::{objects::ships::{ShipEvent, DisableShipOrbitCheck}, physics::time::SIMTICKS_PER_TICK, prelude::*};
 
     use super::*;
 
-    fn new_app() -> App {
-        let mut app = App::new();
+    fn new_app_with(mut app: App) -> App {
         app.add_plugins(ClientPlugin::testing().in_mode(ClientMode::Singleplayer));
         app.update();
         app
@@ -311,7 +310,8 @@ mod tests {
 
     #[test]
     fn test_handle_trajectory_event() -> color_eyre::Result<()> {
-        let mut app = new_app();
+        let mut app = App::new();
+        app = new_app_with(app);
         let trajectory = new_trajectory();
         app.world_mut().send_event(TrajectoryEvent::Create {
             ship: ShipID::from("s")?,
@@ -333,7 +333,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_trajectory() {
-        let mut app = new_app();
+        let mut app = App::new();
+        app = new_app_with(app);
         let id = id_from("s");
         app.world_mut().send_event(ShipEvent::Create(ShipInfo {
             id,
@@ -361,7 +362,9 @@ mod tests {
 
     #[test]
     fn test_follow_trajectory() {
-        let mut app = new_app();
+        let mut app = App::new();
+        app.insert_resource(DisableShipOrbitCheck(true));
+        app = new_app_with(app);
         let id = id_from("s");
         app.world_mut().send_event(ShipEvent::Create(ShipInfo {
             id,
@@ -390,6 +393,6 @@ mod tests {
             .world_mut()
             .query_filtered::<&Velocity, With<ShipInfo>>()
             .single(app.world());
-        assert!((ship_speed.0 - DVec3::new(0., 2e4, 0.)).length() < 10.);
+        assert!((ship_speed.0 - DVec3::new(0., 2e4, 0.)).length() < 10., "Erreur trop grande : {}, ship_speed.0 : {}", (ship_speed.0 - DVec3::new(0., 2e4, 0.)).length(), ship_speed.0);
     }
 }
