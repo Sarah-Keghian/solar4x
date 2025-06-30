@@ -7,7 +7,7 @@ use std::f64::consts::PI;
 
 use crate::game::{ClearOnUnload, Loaded};
 use crate::physics::influence::{HillRadius};
-use crate::physics::{leapfrog::get_acceleration, G, time::TickEvent};
+use crate::physics::{leapfrog::get_acceleration, G};
 use crate::physics::prelude::*;
 use crate::objects::{
     orbiting_obj::{OrbitingObjects, OrbitalObjID},
@@ -46,7 +46,12 @@ impl Plugin for ShipsPlugin {
             .add_event::<ShipEvent>()
             .add_systems(Update, handle_ship_events.in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
-            .add_systems(Update, check_ship_orbits.run_if(on_event::<TickEvent>()));
+            .add_systems(
+                Update,
+                check_ship_orbits.run_if(|r: Option<Res<DisableShipOrbitCheck>>| {
+                    !r.is_some_and(|r| r.0)
+                }),
+            );
     }
 }
 #[derive(Component)]
@@ -215,7 +220,7 @@ fn calc_elliptical_orbit(
 
 
 fn check_ship_orbits(
-    ships: Query<(&ShipInfo, &Position, &Velocity, &Influenced)>,
+    ships: Query<(&ShipInfo, &Position, &Velocity, &Influenced), Without<EllipticalOrbit>>,
     influencers: Query<(&Position, &Velocity, &Mass), With<HillRadius>>,
     mut writer: EventWriter<ShipEvent>,
 ) {
@@ -236,6 +241,9 @@ fn check_ship_orbits(
         }
     }
 }
+
+#[derive(Resource, Default)]
+pub struct DisableShipOrbitCheck(pub bool);
 
 #[cfg(test)]
 mod tests {
