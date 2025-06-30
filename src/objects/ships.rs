@@ -138,8 +138,11 @@ fn handle_ship_events(
                 mass,
             } => {
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
+                    if query_influenced.get(*ship).is_err() {
+                        continue;
+                    }
                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
-                    let orbiting_obj = OrbitingObjects(Vec::new());
+                    let orbiting_obj: OrbitingObjects = OrbitingObjects(Vec::new());
                     let host_body_id = get_host_body(ship, &query_influenced, &bodies);
                     let host_entity = mapping.0.get(&host_body_id).unwrap();
                     let mut host_bodies = param.p1();
@@ -219,7 +222,7 @@ fn calc_elliptical_orbit(
 } 
 
 
-fn check_ship_orbits(
+pub(crate) fn check_ship_orbits(
     ships: Query<(&ShipInfo, &Position, &Velocity, &Influenced), Without<EllipticalOrbit>>,
     influencers: Query<(&Position, &Velocity, &Mass), With<HillRadius>>,
     mut writer: EventWriter<ShipEvent>,
