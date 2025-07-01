@@ -49,6 +49,7 @@ impl Plugin for ShipsPlugin {
                     handle_ship_create,
                     handle_ship_remove,
                     handle_switch_to_orbital,
+                    handle_switch_to_pred_mode,
                 ).in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
             .add_systems(
@@ -79,6 +80,7 @@ pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
     SwitchToOrbital{ship_id: ShipID, r_vec: DVec3, v_vec: DVec3, host_mass: Mass},
+    SwitchToPredMode(ShipID),
 }
 
 fn create_ships(mut commands: Commands) {
@@ -172,6 +174,42 @@ fn handle_switch_to_orbital(
                     .insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
                 commands.entity(*ship).remove::<(Acceleration, Influenced)>();
             };
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_switch_to_pred_mode(
+    mut reader: EventReader<ShipEvent>,
+    mut commands: Commands,
+    ships_mapping: Res<ShipsMapping>,
+    ship_positions :  Query<&Position, With<ShipInfo>>,
+    query: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    query_with_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>, 
+    bodies_mapping:Res<BodiesMapping>,
+    main_body: Query<&BodyInfo, With<PrimaryBody>>,
+) {
+    for event in reader.read() {
+        if let ShipEvent::SwitchToPredMode(ship_id) = event {
+            if let Some(ship) = ships_mapping.0.get(ship_id) {
+                if let Ok(pos) = ship_positions.get(*ship) {
+
+                    let influence = Influenced::new(
+                    pos,
+                    &query,
+                    bodies_mapping.as_ref(),
+                    main_body.single().0.id,
+                    );
+                    let acc = Acceleration::new(get_acceleration(
+                            pos.0,
+                            query_with_mass 
+                                .iter_many(&influence.influencers)
+                                .map(|(p, _, _, m)| (p.0, m.0)),
+                    ));
+
+                    commands.entity(*ship).insert((acc, influence));
+                }
+            }
         }
     }
 }
@@ -424,7 +462,7 @@ mod tests {
         
         let created_ships = app
             .world_mut()
-            .query_filtered::<Entity, (With<Position>, With<Velocity>)>()
+            .query_filtered::<Entity, (With<Position>, With<Velocity>, With<Acceleration>, With<Influenced>)>()
             .iter(app.world())
             .count();
         assert_eq!(created_ships, 1);
@@ -480,6 +518,44 @@ mod tests {
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
         assert!(orbit.is_none(), "Le vaisseau ne devrait pas avoir de composant EllipticalOrbit");
 
+    }
+
+    #[test]
+    fn test_handle_switch_to_pred_mode() {
+
+        let mut app = App::new();
+        
+        app.insert_resource(ShipsMapping::default());
+        app.insert_resource(BodiesMapping::default());
+                
+        app.add_systems(Update, handle_ship_create);
+        app.add_event::<ShipEvent>();
+
+        app.world_mut().spawn((BodyInfo::default(), PrimaryBody));
+        
+        app.world_mut().send_event(ShipEvent::Create(ShipInfo {
+            id: ShipID::from("s").unwrap(),
+            spawn_pos: DVec3::new(1e6, 0., 0.),
+            spawn_speed: DVec3::new(0., 1e6, 0.),
+        }));
+
+        app.world_mut().send_event(ShipEvent::SwitchToOrbital { 
+            ship_id: ShipID::from("s").unwrap(), 
+            r_vec: DVec3::default(), 
+            v_vec: DVec3::default(), 
+            host_mass: Mass(0.),
+        });
+
+        app.update();
+
+        app.world_mut().send_event(ShipEvent::SwitchToPredMode(ShipID::from("s").unwrap()));
+
+        let modified_ships = app
+            .world_mut()
+            .query_filtered::<Entity, (With<Position>, With<Acceleration>, With<Influenced>)>()
+            .iter(app.world())
+            .count();
+        assert_eq!(modified_ships, 1);
     }
 
     #[test]
