@@ -392,7 +392,7 @@ mod tests {
         let mut state_mapping: SystemState<Res<BodiesMapping>> = SystemState::new(app.world_mut());
         let mut state_query: SystemState<Query<(&Position, &HillRadius, &OrbitingObjects)>> = SystemState::new(app.world_mut());
         let (bodies_mapping, bodies) = {
-            let world = app.world();
+        let world = app.world();
             (
                 state_mapping.get(world),
                 state_query.get(world)
@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_switch_to_orbital() {
+    fn test_check_ship_orbits_handle_switch_to_orbital() {
 
         let mut app = App::new();
 
@@ -483,24 +483,21 @@ mod tests {
 
         app.add_systems(Update, handle_switch_to_orbital);
         app.add_systems(Update, check_ship_orbits);
-        app.add_event::<ShipEvent>();
 
         app.update();
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
-        assert!(orbit.is_some(), "Le vaisseau devrait maintenant avoir un composant EllipticalOrbit");
+        let orbiting_obj = app.world().get::<OrbitingObjects>(ship_entity);
+        let host_body = app.world().get::<HostBody>(ship_entity);
+        assert!(orbit.is_some(), "Ship should have a EllipticalOrbit Component");
+        assert!(orbiting_obj.is_some(), "Ship should have a HostBody Component");
+        assert!(host_body.is_some(), "Ship should have a HostBody Component");
     }
 
     #[test]
     fn test_switch_to_orbital_impossible() {
 
         let mut app = App::new();
-
-        // let info = ShipInfo {
-        //     id: ShipID::from("s1").unwrap(),
-        //     spawn_pos: DVec3 { x: -7543652.249402, y: 129905998.4027889, z: 0.},
-        //     spawn_speed: DVec3 { x: -2304513.078405577, y: -1267321.762409748, z: 0. } 
-        // };
         
         // Vaisseau dans le rayon de Hill mais pas en orbite 
         let info = ShipInfo {
@@ -516,94 +513,101 @@ mod tests {
         app.update();
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
-        assert!(orbit.is_none(), "Le vaisseau ne devrait pas avoir de composant EllipticalOrbit");
-
+        let orbiting_obj = app.world().get::<OrbitingObjects>(ship_entity);
+        let host_body = app.world().get::<HostBody>(ship_entity);
+        assert!(orbit.is_none(), "Ship should have no EllipticalOrbit Component");
+        assert!(orbiting_obj.is_none(), "Ship should have no OrbitingObjects Component");
+        assert!(host_body.is_none(), "Ship should have no HostBody Component");
     }
 
     #[test]
     fn test_handle_switch_to_pred_mode() {
 
         let mut app = App::new();
-        
-        app.insert_resource(ShipsMapping::default());
-        app.insert_resource(BodiesMapping::default());
-                
-        app.add_systems(Update, handle_ship_create);
-        app.add_event::<ShipEvent>();
 
-        app.world_mut().spawn((BodyInfo::default(), PrimaryBody));
-        
-        app.world_mut().send_event(ShipEvent::Create(ShipInfo {
+        let info = ShipInfo {
             id: ShipID::from("s").unwrap(),
-            spawn_pos: DVec3::new(1e6, 0., 0.),
-            spawn_speed: DVec3::new(0., 1e6, 0.),
-        }));
+            spawn_pos: DVec3 { x: -32501208.838173263, y: 143561259.9263618, z: 0.},
+            spawn_speed: DVec3 { x: -2696715.3893552525, y: -672187.3782865074, z: 0. } 
+        };
 
+        let ship_entity = setup(&mut app, &info);
+
+        app.add_systems(Update, handle_switch_to_pred_mode);
+        app.add_systems(Update, handle_switch_to_orbital);
+
+        
         app.world_mut().send_event(ShipEvent::SwitchToOrbital { 
             ship_id: ShipID::from("s").unwrap(), 
-            r_vec: DVec3::default(), 
-            v_vec: DVec3::default(), 
-            host_mass: Mass(0.),
+            r_vec: DVec3 { x: -32501208.838173263, y: 143561259.9263618, z: 0.}, 
+            v_vec: DVec3 { x: -2696715.38935525, y: -672187.3782865074, z: 0. },
+            host_mass: Mass(1e20),
         });
 
         app.update();
 
         app.world_mut().send_event(ShipEvent::SwitchToPredMode(ShipID::from("s").unwrap()));
 
-        let modified_ships = app
-            .world_mut()
-            .query_filtered::<Entity, (With<Position>, With<Acceleration>, With<Influenced>)>()
-            .iter(app.world())
-            .count();
-        assert_eq!(modified_ships, 1);
+        app.update();
+
+        let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
+        let orbiting_obj = app.world().get::<OrbitingObjects>(ship_entity);
+        let host_body = app.world().get::<HostBody>(ship_entity);
+        assert!(orbit.is_some(), "Ship should have a EllipticalOrbit Component");
+        assert!(orbiting_obj.is_some(), "Ship should have a HostBody Component");
+        assert!(host_body.is_some(), "Ship should have a HostBody Component");
+
+        let influenced = app.world().get::<Influenced>(ship_entity);
+        let acc = app.world().get::<Acceleration>(ship_entity);
+        assert!(influenced.is_some(), "Ship should have an Influenced Component");
+        assert!(acc.is_some(), "Ship should have an Acceleration Component");
     }
 
     #[test]
     fn test_calc_elliptical_orbit() {
-    // r and v found at https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=399&CENTER=%27@sun%27&EPHEM_TYPE=VECTORS&START_TIME=%272000-01-01%27&STOP_TIME=%272000-01-02%27&STEP_SIZE=%271%20d%27&OUT_UNITS=KM-S
-    let r_vec = DVec3::new(
-    -2.521092855899356e7,
-    1.449279195838006e8,
-    -6.164165719002485e2,
-    );
-    let v_vec = DVec3::new(
-        -29.83983333677879,
-        -5.207633902410673,
-        6.16844118423998e-05,
-    )* SECONDS_PER_DAY;
+        // r and v found at https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=399&CENTER=%27@sun%27&EPHEM_TYPE=VECTORS&START_TIME=%272000-01-01%27&STOP_TIME=%272000-01-02%27&STEP_SIZE=%271%20d%27&OUT_UNITS=KM-S
+        let r_vec = DVec3::new(
+        -2.521092855899356e7,
+        1.449279195838006e8,
+        -6.164165719002485e2,
+        );
+        let v_vec = DVec3::new(
+            -29.83983333677879,
+            -5.207633902410673,
+            6.16844118423998e-05,
+        )* SECONDS_PER_DAY;
 
-    let earth_mass = 1.9885e30;
+        let earth_mass = 1.9885e30;
 
-    let orbit = calc_elliptical_orbit(
-        r_vec,
-        v_vec,
-        Mass(earth_mass),
-    );
-    let semimajor =  149598023.;
-    let eccentricity = 0.01670;
-    let inclination = 0.;
-    let long_asc_node = 18.272;
-    let arg_periapsis = 85.901;
-    // let initial_mean_anomaly = 358.617;
-    let revolution_period = 365.256;
+        let orbit = calc_elliptical_orbit(
+            r_vec,
+            v_vec,
+            Mass(earth_mass),
+        );
+        let semimajor =  149598023.;
+        let eccentricity = 0.01670;
+        let inclination = 0.;
+        let long_asc_node = 18.272;
+        let arg_periapsis = 85.901;
+        // let initial_mean_anomaly = 358.617;
+        let revolution_period = 365.256;
 
-    let tolerance_prct = 0.2;
-    let epsilon = 1e-5;
+        let tolerance_prct = 0.2;
+        let epsilon = 1e-5;
 
-    fn normalize_angle(angle: f64) -> f64 {
-        let mut a = angle % TWO_PI;
-        if a < 0.0 {
-            a += TWO_PI;
+        fn normalize_angle(angle: f64) -> f64 {
+            let mut a = angle % TWO_PI;
+            if a < 0.0 {
+                a += TWO_PI;
+            }
+            a
         }
-        a
-    }
 
-    assert!((orbit.semimajor_axis - semimajor).abs() < tolerance_prct * semimajor);
-    assert!((orbit.eccentricity - eccentricity).abs() < eccentricity * tolerance_prct);
-    assert!((orbit.inclination - inclination).abs() < epsilon);
-    assert!((normalize_angle(orbit.long_asc_node) - normalize_angle(long_asc_node)).abs() < long_asc_node * tolerance_prct);
-    assert!((normalize_angle(orbit.arg_periapsis) - normalize_angle(arg_periapsis)).abs() < arg_periapsis * tolerance_prct);
-    assert!((orbit.revolution_period - revolution_period).abs() < revolution_period * tolerance_prct);
-
-    }
+        assert!((orbit.semimajor_axis - semimajor).abs() < tolerance_prct * semimajor);
+        assert!((orbit.eccentricity - eccentricity).abs() < eccentricity * tolerance_prct);
+        assert!((orbit.inclination - inclination).abs() < epsilon);
+        assert!((normalize_angle(orbit.long_asc_node) - normalize_angle(long_asc_node)).abs() < long_asc_node * tolerance_prct);
+        assert!((normalize_angle(orbit.arg_periapsis) - normalize_angle(arg_periapsis)).abs() < arg_periapsis * tolerance_prct);
+        assert!((orbit.revolution_period - revolution_period).abs() < revolution_period * tolerance_prct);
+        }
 }
