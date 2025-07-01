@@ -73,7 +73,7 @@ pub struct ShipsMapping(pub HashMap<ShipID, Entity>);
 pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
-    SwitchToOrbital{ship_id: ShipID, r_vec: Position, v_vec: Velocity, mass: Mass}
+    SwitchToOrbital{ship_id: ShipID, r_vec: Position, v_vec: Velocity, host_mass: Mass}
 }
 
 fn create_ships(mut commands: Commands) {
@@ -135,13 +135,13 @@ fn handle_ship_events(
                 ship_id,
                 r_vec,
                 v_vec,
-                mass,
+                host_mass,
             } => {
                 if let Some(ship) = ships_mapping.0.get(ship_id) {
                     if query_influenced.get(*ship).is_err() {
                         continue;
                     }
-                    let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *mass);
+                    let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *host_mass);
                     let orbiting_obj: OrbitingObjects = OrbitingObjects(Vec::new());
                     let host_body_id = get_host_body(ship, &query_influenced, &bodies);
                     let host_entity = mapping.0.get(&host_body_id).unwrap();
@@ -238,7 +238,7 @@ pub(crate) fn check_ship_orbits(
                 debug_to_file("eccentricity", e);
                 if e < 1.0 {
                     debug_to_file("in orbit", "!");
-                    writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: Position(r), v_vec: Velocity(v), mass: *inf_mass});
+                    writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: Position(r), v_vec: Velocity(v), host_mass: *inf_mass});
                 }
             }
         }
