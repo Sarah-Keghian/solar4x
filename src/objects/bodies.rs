@@ -38,10 +38,10 @@ pub type BodyID = ArrayString<MAX_ID_LENGTH>;
 #[derive(Component)]
 pub struct PrimaryBody;
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct BodyInfo(pub BodyData);
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct BodiesMapping(pub HashMap<BodyID, Entity>);
 
 pub struct BodiesPlugin;

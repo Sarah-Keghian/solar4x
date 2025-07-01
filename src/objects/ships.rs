@@ -44,7 +44,12 @@ impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(trajectory::plugin)
             .add_event::<ShipEvent>()
-            .add_systems(Update, handle_ship_events.in_set(ObjectsUpdate))
+            .add_systems(Update, 
+                (
+                    handle_ship_create,
+                    handle_ship_remove,
+                    handle_switch_to_orbital,
+                ).in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
             .add_systems(
                 Update,
@@ -73,87 +78,178 @@ pub struct ShipsMapping(pub HashMap<ShipID, Entity>);
 pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
-    SwitchToOrbital{ship_id: ShipID, r_vec: Position, v_vec: Velocity, host_mass: Mass}
+    SwitchToOrbital{ship_id: ShipID, r_vec: Position, v_vec: Velocity, host_mass: Mass}, //enlever position et velocity
 }
 
 fn create_ships(mut commands: Commands) {
     commands.insert_resource(ShipsMapping::default());
 }
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
-fn handle_ship_events(
-    mut commands: Commands,
+// #[allow(clippy::too_many_arguments)]
+// #[allow(clippy::type_complexity)]
+// fn handle_ship_events(
+//     mut commands: Commands,
+//     mut reader: EventReader<ShipEvent>,
+//     mut ships_mapping: ResMut<ShipsMapping>,
+//     mut param: ParamSet<(
+//         Query<(&Position, &HillRadius, &OrbitingObjects)>, 
+//         Query<&mut OrbitingObjects>,                       
+//         Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>, 
+//     )>,
+//     bodies: Query<&BodyInfo>,
+//     query_influenced: Query<&Influenced>,
+//     mapping: Res<BodiesMapping>,
+//     main_body: Query<&BodyInfo, With<PrimaryBody>>,
+// ) {
+//     for event in reader.read() {
+//         match event {
+//             ShipEvent::Create(info) => {
+//                 let pos = Position(info.spawn_pos);
+
+//                 ships_mapping.0.entry(info.id).or_insert({
+//                     let influence = Influenced::new(
+//                         &pos,
+//                         &param.p0(),
+//                         mapping.as_ref(),
+//                         main_body.single().0.id,
+//                     );
+
+//                     commands
+//                         .spawn((
+//                             info.clone(),
+//                             Acceleration::new(get_acceleration(
+//                                 info.spawn_pos,
+//                                 param.p2() 
+//                                     .iter_many(&influence.influencers)
+//                                     .map(|(p, _, _, m)| (p.0, m.0)),
+//                             )),
+//                             influence,
+//                             pos,
+//                             Velocity(info.spawn_speed),
+//                             TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
+//                             ClearOnUnload,
+//                         ))
+//                         .id()
+//                 });
+//             }
+//             ShipEvent::Remove(id) => {
+//                 if let Some(e) = ships_mapping.0.remove(id) {
+//                     commands.entity(e).despawn()
+//                 }
+//             }
+//             ShipEvent::SwitchToOrbital {
+//                 ship_id,
+//                 r_vec,
+//                 v_vec,
+//                 host_mass,
+//             } => {
+//                 if let Some(ship) = ships_mapping.0.get(ship_id) {
+//                     if query_influenced.get(*ship).is_err() {
+//                         continue;
+//                     }
+//                     let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *host_mass);
+//                     let orbiting_obj: OrbitingObjects = OrbitingObjects(Vec::new());
+//                     let host_body_id = get_host_body(ship, &query_influenced, &bodies);
+//                     let host_entity = mapping.0.get(&host_body_id).unwrap();
+//                     let mut host_bodies = param.p1();
+//                     let mut host_orbiting_obj = host_bodies.get_mut(*host_entity).unwrap();                    
+//                     host_orbiting_obj.0.push(OrbitalObjID::Ship(*ship_id));
+//                     commands
+//                         .entity(*ship)
+//                         .insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
+//                     commands.entity(*ship).remove::<(Acceleration, Influenced)>();
+//                 };
+//             }
+//         }
+//     }
+// }
+
+fn handle_ship_remove(
     mut reader: EventReader<ShipEvent>,
+    mut commands: Commands,
     mut ships_mapping: ResMut<ShipsMapping>,
-    mut param: ParamSet<(
-        Query<(&Position, &HillRadius, &OrbitingObjects)>, 
-        Query<&mut OrbitingObjects>,                       
-        Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>, 
-    )>,
-    bodies: Query<&BodyInfo>,
-    query_influenced: Query<&Influenced>,
-    mapping: Res<BodiesMapping>,
+) {
+    for event in reader.read() {
+        if let ShipEvent::Remove(id) = event {
+            if let Some(e) = ships_mapping.0.remove(id) {
+                commands.entity(e).despawn();
+            }
+        }
+    }      
+}
+
+fn handle_ship_create(
+    mut reader: EventReader<ShipEvent>, 
+    mut commands: Commands, 
+    mut ships_mapping: ResMut<ShipsMapping>,
+    query: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    query_with_mass: Query<(&Position, &HillRadius, &OrbitingObjects, &Mass)>, 
+    bodies_mapping:Res<BodiesMapping>,
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
 ) {
     for event in reader.read() {
-        match event {
-            ShipEvent::Create(info) => {
-                let pos = Position(info.spawn_pos);
+        if let ShipEvent::Create(info) = event {
+            let pos = Position(info.spawn_pos);
+            ships_mapping.0.entry(info.id).or_insert({
+                let influence = Influenced::new(
+                    &pos,
+                    &query,
+                    bodies_mapping.as_ref(),
+                    main_body.single().0.id,
+                );
+                commands
+                    .spawn((
+                        info.clone(),
+                        Acceleration::new(get_acceleration(
+                            info.spawn_pos,
+                            query_with_mass 
+                                .iter_many(&influence.influencers)
+                                .map(|(p, _, _, m)| (p.0, m.0)),
+                        )),
+                        influence,
+                        pos,
+                        Velocity(info.spawn_speed),
+                        TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
+                        ClearOnUnload,
+                    ))
+                    .id()
+            
+            });
+        }
+    }
+}
 
-                ships_mapping.0.entry(info.id).or_insert({
-                    let influence = Influenced::new(
-                        &pos,
-                        &param.p0(),
-                        mapping.as_ref(),
-                        main_body.single().0.id,
-                    );
-
-                    commands
-                        .spawn((
-                            info.clone(),
-                            Acceleration::new(get_acceleration(
-                                info.spawn_pos,
-                                param.p2() 
-                                    .iter_many(&influence.influencers)
-                                    .map(|(p, _, _, m)| (p.0, m.0)),
-                            )),
-                            influence,
-                            pos,
-                            Velocity(info.spawn_speed),
-                            TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
-                            ClearOnUnload,
-                        ))
-                        .id()
-                });
-            }
-            ShipEvent::Remove(id) => {
-                if let Some(e) = ships_mapping.0.remove(id) {
-                    commands.entity(e).despawn()
+fn handle_switch_to_orbital(
+    mut reader: EventReader<ShipEvent>,
+    mut commands: Commands,
+    mut orbiting: Query<&mut OrbitingObjects>,
+    query_influenced: Query<&Influenced>,
+    bodies: Query<&BodyInfo>,
+    ships_mapping: Res<ShipsMapping>,
+    bodies_mapping: Res<BodiesMapping>,
+) {
+    for event in reader.read() {
+        if let ShipEvent::SwitchToOrbital { 
+                ship_id, 
+                r_vec, 
+                v_vec, 
+                host_mass 
+            } = event 
+        {
+            if let Some(ship) = ships_mapping.0.get(ship_id) {
+                if query_influenced.get(*ship).is_err() {
+                    continue;
                 }
-            }
-            ShipEvent::SwitchToOrbital {
-                ship_id,
-                r_vec,
-                v_vec,
-                host_mass,
-            } => {
-                if let Some(ship) = ships_mapping.0.get(ship_id) {
-                    if query_influenced.get(*ship).is_err() {
-                        continue;
-                    }
-                    let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *host_mass);
-                    let orbiting_obj: OrbitingObjects = OrbitingObjects(Vec::new());
-                    let host_body_id = get_host_body(ship, &query_influenced, &bodies);
-                    let host_entity = mapping.0.get(&host_body_id).unwrap();
-                    let mut host_bodies = param.p1();
-                    let mut host_orbiting_obj = host_bodies.get_mut(*host_entity).unwrap();                    
-                    host_orbiting_obj.0.push(OrbitalObjID::Ship(*ship_id));
-                    commands
-                        .entity(*ship)
-                        .insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
-                    commands.entity(*ship).remove::<(Acceleration, Influenced)>();
-                };
-            }
+                let orbit = calc_elliptical_orbit(*r_vec, *v_vec, *host_mass);
+                let orbiting_obj: OrbitingObjects = OrbitingObjects(Vec::new());
+                let host_body_id = get_host_body(ship, &query_influenced, &bodies);
+                let host_entity = bodies_mapping.0.get(&host_body_id).unwrap();
+                let mut host_orbiting_obj = orbiting.get_mut(*host_entity).unwrap(); 
+                host_orbiting_obj.0.push(OrbitalObjID::Ship(*ship_id));
+                commands
+                    .entity(*ship)
+                    .insert((orbit, orbiting_obj.clone(), HostBody(host_body_id)));
+                commands.entity(*ship).remove::<(Acceleration, Influenced)>();
+            };
         }
     }
 }
@@ -365,7 +461,57 @@ mod tests {
     }
 
     #[test]
-    fn test_switch_to_orbital() {
+    fn test_handle_ship_remove() {
+        let mut app = App::new();
+        
+        app.insert_resource(ShipsMapping::default());
+        app.add_event::<ShipEvent>();
+        
+        app.add_systems(Update, handle_ship_remove);
+
+        let ship_id = ShipID::from("ship").unwrap();
+        let info: ShipInfo = ShipInfo::default();
+        let entity = app.world_mut().spawn(info).id();
+        app.world_mut().resource_mut::<ShipsMapping>().0.insert(ship_id, entity);
+        
+        app.world_mut().send_event(ShipEvent::Remove(ship_id));
+        
+        app.update();
+        
+        assert!(app.world().get_entity(entity).is_none());
+        assert!(!app.world().resource::<ShipsMapping>().0.contains_key(&ship_id));
+    }
+
+    #[test]
+    fn test_handle_ship_create() {
+        let mut app = App::new();
+        
+        app.insert_resource(ShipsMapping::default());
+        app.insert_resource(BodiesMapping::default());
+        
+        app.world_mut().spawn((BodyInfo::default(), PrimaryBody));
+        
+        app.add_systems(Update, handle_ship_create);
+        app.add_event::<ShipEvent>();
+
+        app.world_mut().send_event(ShipEvent::Create(ShipInfo {
+            id: ShipID::from("s").unwrap(),
+            spawn_pos: DVec3::new(1e6, 0., 0.),
+            spawn_speed: DVec3::new(0., 1e6, 0.),
+        }));
+                
+        app.update();
+        
+        let created_ships = app
+            .world_mut()
+            .query_filtered::<Entity, (With<Position>, With<Velocity>)>()
+            .iter(app.world())
+            .count();
+        assert_eq!(created_ships, 1);
+    }
+
+    #[test]
+    fn test_handle_switch_to_orbital() {
 
         let mut app = App::new();
 
@@ -377,7 +523,7 @@ mod tests {
 
         let ship_entity = setup(&mut app, &info);
 
-        app.add_systems(Update, handle_ship_events);
+        app.add_systems(Update, handle_switch_to_orbital);
         app.add_systems(Update, check_ship_orbits);
         app.add_event::<ShipEvent>();
 
@@ -385,7 +531,6 @@ mod tests {
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
         assert!(orbit.is_some(), "Le vaisseau devrait maintenant avoir un composant EllipticalOrbit");
-
     }
 
     #[test]
@@ -407,7 +552,7 @@ mod tests {
         };
         let ship_entity = setup(&mut app, &info);
 
-        app.add_systems(Update, handle_ship_events);
+        app.add_systems(Update, handle_ship_create);
         app.add_systems(Update, check_ship_orbits);
 
         app.update();

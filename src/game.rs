@@ -192,9 +192,9 @@ fn disable_time(mut toggle: ResMut<ToggleTime>) {
 
 #[cfg(test)]
 mod tests {
-    use bevy::{app::App, math::DVec3, state::state::State};
+    use bevy::{app::App, state::state::State};
 
-    use crate::{objects::ships::ShipEvent, prelude::*};
+    use crate::prelude::*;
 
     fn new_app() -> App {
         let mut app = App::new();
@@ -202,21 +202,6 @@ mod tests {
         app.update();
         app.update();
         app
-    }
-
-    #[test]
-    fn test_handle_ship_events() {
-        let mut app = new_app();
-
-        app.world_mut().send_event(ShipEvent::Create(ShipInfo {
-            id: ShipID::from("s").unwrap(),
-            spawn_pos: DVec3::new(1e6, 0., 0.),
-            spawn_speed: DVec3::new(0., 1e6, 0.),
-        }));
-        app.update();
-        let world = app.world_mut();
-        assert_eq!(world.resource::<ShipsMapping>().0.len(), 1);
-        assert_eq!(world.query::<&ShipInfo>().iter(world).len(), 1);
     }
 
     #[test]
