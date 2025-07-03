@@ -177,6 +177,7 @@ pub struct EditorScreen;
 #[allow(clippy::too_many_arguments)]
 fn create_screen(
     mut commands: Commands,
+    mut writer: EventWriter<ShipEvent>,
     screen: Res<State<AppScreen>>,
     ships: Query<(&ShipInfo, &Position, &Velocity)>,
     ships_mapping: Res<ShipsMapping>,
@@ -229,6 +230,7 @@ fn create_screen(
             let mut map = SpaceMap::new(system_size.0, host_body, host_body);
             map.autoscale(&bodies_mapping.0, &bodies);
             commands.insert_resource(map);
+            writer.send(ShipEvent::SwitchToEditMode(*id));
         }
     }
 }

@@ -49,7 +49,7 @@ impl Plugin for ShipsPlugin {
                     handle_ship_create,
                     handle_ship_remove,
                     handle_switch_to_orbital,
-                    handle_switch_to_pred_mode,
+                    handle_switch_to_edit_mode,
                 ).in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
             .add_systems(
@@ -80,7 +80,7 @@ pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
     SwitchToOrbital{ship_id: ShipID, r_vec: DVec3, v_vec: DVec3, host_mass: Mass},
-    SwitchToPredMode(ShipID),
+    SwitchToEditMode(ShipID),
 }
 
 fn create_ships(mut commands: Commands) {
@@ -179,7 +179,7 @@ fn handle_switch_to_orbital(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_switch_to_pred_mode(
+fn handle_switch_to_edit_mode(
     mut reader: EventReader<ShipEvent>,
     mut commands: Commands,
     ships_mapping: Res<ShipsMapping>,
@@ -190,7 +190,7 @@ fn handle_switch_to_pred_mode(
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
 ) {
     for event in reader.read() {
-        if let ShipEvent::SwitchToPredMode(ship_id) = event {
+        if let ShipEvent::SwitchToEditMode(ship_id) = event {
             if let Some(ship) = ships_mapping.0.get(ship_id) {
                 if let Ok(pos) = ship_positions.get(*ship) {
 
@@ -521,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_switch_to_pred_mode() {
+    fn test_handle_switch_to_edit_mode() {
 
         let mut app = App::new();
 
@@ -533,7 +533,7 @@ mod tests {
 
         let ship_entity = setup(&mut app, &info);
 
-        app.add_systems(Update, handle_switch_to_pred_mode);
+        app.add_systems(Update, handle_switch_to_edit_mode);
         app.add_systems(Update, handle_switch_to_orbital);
 
         
@@ -546,7 +546,7 @@ mod tests {
 
         app.update();
 
-        app.world_mut().send_event(ShipEvent::SwitchToPredMode(ShipID::from("s").unwrap()));
+        app.world_mut().send_event(ShipEvent::SwitchToEditMode(ShipID::from("s").unwrap()));
 
         app.update();
 
