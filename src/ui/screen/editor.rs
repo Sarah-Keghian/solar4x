@@ -10,10 +10,9 @@ use ratatui::{
 
 use crate::{
     objects::{
-        ships::{trajectory::ManeuverNode, HostBody},
-        orbiting_obj::{OrbitingObjects},
+        orbiting_obj::OrbitingObjects, ships::{trajectory::ManeuverNode, DisableShipOrbitCheck, HostBody}
 }, 
-    physics::{time::SIMTICKS_PER_TICK, influence::HillRadius, leapfrog::get_acceleration}, 
+    physics::{influence::HillRadius, leapfrog::get_acceleration, time::SIMTICKS_PER_TICK}, 
     prelude::*,
 };
 
@@ -238,10 +237,15 @@ fn create_screen(
 #[derive(Component, Clone, Copy)]
 pub struct ClearOnEditorExit;
 
-fn clear_screen(mut commands: Commands, query: Query<Entity, With<ClearOnEditorExit>>) {
+fn clear_screen(
+    mut commands: Commands, 
+    query: Query<Entity, With<ClearOnEditorExit>>,
+    mut disable_orbit_check: ResMut<DisableShipOrbitCheck>, 
+) {
     commands.remove_resource::<EditorContext>();
     commands.remove_resource::<SpaceMap>();
     query.iter().for_each(|e| commands.entity(e).despawn());
+    disable_orbit_check.0 = false;
 }
 
 fn read_input(
