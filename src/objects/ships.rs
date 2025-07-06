@@ -49,11 +49,11 @@ impl Plugin for ShipsPlugin {
                     handle_ship_create,
                     handle_ship_remove,
                     handle_switch_to_orbital,
-                    handle_switch_to_edit_mode,
+                    handle_switch_to_free_motion,
                 ).in_set(ObjectsUpdate))
             .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
             .add_systems(
-                Update,
+                PostUpdate,
                 check_ship_orbits.run_if(|r: Option<Res<DisableShipOrbitCheck>>| {
                     !r.is_some_and(|r| r.0)
                 }),
@@ -80,7 +80,7 @@ pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
     SwitchToOrbital{ship_id: ShipID, r_vec: DVec3, v_vec: DVec3, host_mass: Mass},
-    SwitchToEditMode(ShipID),
+    SwitchToFreeMotion(ShipID),
 }
 
 fn create_ships(mut commands: Commands) {
@@ -179,7 +179,7 @@ fn handle_switch_to_orbital(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_switch_to_edit_mode(
+fn handle_switch_to_free_motion(
     mut reader: EventReader<ShipEvent>,
     mut commands: Commands,
     ships_mapping: Res<ShipsMapping>,
@@ -190,7 +190,7 @@ fn handle_switch_to_edit_mode(
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
 ) {
     for event in reader.read() {
-        if let ShipEvent::SwitchToEditMode(ship_id) = event {
+        if let ShipEvent::SwitchToFreeMotion(ship_id) = event {
             if let Some(ship) = ships_mapping.0.get(ship_id) {
                 if let Ok(pos) = ship_positions.get(*ship) {
 
@@ -206,7 +206,8 @@ fn handle_switch_to_edit_mode(
                                 .iter_many(&influence.influencers)
                                 .map(|(p, _, _, m)| (p.0, m.0)),
                     ));
-
+                    commands.insert_resource(DisableShipOrbitCheck(true));
+                    commands.entity(*ship).remove::<(HostBody, OrbitingObjects, EllipticalOrbit)>();
                     commands.entity(*ship).insert((acc, influence));
                 }
             }
@@ -521,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_switch_to_edit_mode() {
+    fn test_handle_switch_to_free_motion() {
 
         let mut app = App::new();
 
@@ -533,7 +534,7 @@ mod tests {
 
         let ship_entity = setup(&mut app, &info);
 
-        app.add_systems(Update, handle_switch_to_edit_mode);
+        app.add_systems(Update, handle_switch_to_free_motion);
         app.add_systems(Update, handle_switch_to_orbital);
 
         
@@ -546,16 +547,16 @@ mod tests {
 
         app.update();
 
-        app.world_mut().send_event(ShipEvent::SwitchToEditMode(ShipID::from("s").unwrap()));
+        app.world_mut().send_event(ShipEvent::SwitchToFreeMotion(ShipID::from("s").unwrap()));
 
         app.update();
 
         let orbit = app.world().get::<EllipticalOrbit>(ship_entity);
         let orbiting_obj = app.world().get::<OrbitingObjects>(ship_entity);
-        let host_body = app.world().get::<HostBody>(ship_entity);
-        assert!(orbit.is_some(), "Ship should have a EllipticalOrbit Component");
-        assert!(orbiting_obj.is_some(), "Ship should have a HostBody Component");
-        assert!(host_body.is_some(), "Ship should have a HostBody Component");
+        let host_body: Option<&HostBody> = app.world().get::<HostBody>(ship_entity);
+        assert!(orbit.is_none(), "Ship shouldn't have a EllipticalOrbit Component");
+        assert!(orbiting_obj.is_none(), "Ship shouldn't have a HostBody Component");
+        assert!(host_body.is_none(), "Ship shouldn't have a HostBody Component");
 
         let influenced = app.world().get::<Influenced>(ship_entity);
         let acc = app.world().get::<Acceleration>(ship_entity);

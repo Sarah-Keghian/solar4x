@@ -230,7 +230,7 @@ fn create_screen(
             let mut map = SpaceMap::new(system_size.0, host_body, host_body);
             map.autoscale(&bodies_mapping.0, &bodies);
             commands.insert_resource(map);
-            writer.send(ShipEvent::SwitchToEditMode(*id));
+            writer.send(ShipEvent::SwitchToFreeMotion(*id));
         }
     }
 }
