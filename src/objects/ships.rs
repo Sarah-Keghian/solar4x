@@ -13,7 +13,6 @@ use crate::objects::{
     orbiting_obj::{OrbitingObjects, OrbitalObjID},
     bodies::BodyID,
 };
-use crate::ui::gui::debug_to_file;
 
 use super::id::MAX_ID_LENGTH;
 use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
@@ -290,9 +289,7 @@ pub(crate) fn check_ship_orbits(
                 let h = r.cross(v);
                 let e_vec = (v.cross(h)) / (G * inf_mass.0) - r / r.length();                
                 let e = e_vec.length();
-                debug_to_file("eccentricity", e);
                 if e < 1.0 {
-                    debug_to_file("in orbit", "!");
                     writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: r, v_vec: v, host_mass: *inf_mass});
                 }
             }
