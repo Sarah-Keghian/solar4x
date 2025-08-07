@@ -6,6 +6,8 @@ use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(FixedUpdate, handle_schedules);
+    app.add_systems(Update, handle_add_action_to_schedule);
+    app.add_event::<AddAction>();
 }
 
 #[derive(Clone)]
