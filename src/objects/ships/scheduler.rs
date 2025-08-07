@@ -41,9 +41,9 @@ fn convert_kind(
 ) {
     match kind {
         ShipActionKind::AddNode{node} => {traj_writer.send(TrajectoryEvent::AddNode {
-                                                            ship: ship.clone(),
+                                                            ship: *ship,
                                                             node: node.clone(),
-                                                            tick: tick,
+                                                            tick,
                                                             }
                                                         );
         },
@@ -106,7 +106,7 @@ mod tests {
         received,
         vec![TrajectoryEvent::AddNode {
             ship: ship_id,
-            node: node,
+            node,
             tick: 1,
         }]);
     }

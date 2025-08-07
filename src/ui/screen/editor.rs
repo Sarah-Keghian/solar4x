@@ -218,7 +218,6 @@ fn read_input(
     keymap: Res<Keymap>,
     mut internal_event: EventWriter<EditorEvents>,
     mut next_screen: ResMut<NextState<AppScreen>>,
-    context: Res<EditorContext>,
 ) {
     use Direction2::*;
     use EditorEvents::*;
