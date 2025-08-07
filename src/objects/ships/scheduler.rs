@@ -10,6 +10,7 @@ pub(crate) enum ShipActionKind {
     AddNode{ node: ManeuverNode },
     // OtherAction,
 }
+
 #[derive(Component)]
 pub(crate) struct ShipSchedule {
     pub(crate) ship: ShipID,
@@ -33,6 +34,7 @@ fn handle_schedules (
         }
     }
 }
+
 fn convert_kind(
     tick: u64,
     kind: &ShipActionKind,
@@ -110,5 +112,4 @@ mod tests {
             tick: 1,
         }]);
     }
-
 }
