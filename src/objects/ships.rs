@@ -12,6 +12,7 @@ use crate::physics::prelude::*;
 use super::id::MAX_ID_LENGTH;
 use super::prelude::{BodiesMapping, BodyInfo, PrimaryBody};
 use super::ObjectsUpdate;
+use scheduler::{ShipSchedule, ShipActionKind};
 
 pub mod trajectory;
 pub mod scheduler;
@@ -92,6 +93,7 @@ fn handle_ship_events(
                             influence,
                             pos,
                             Velocity(info.spawn_speed),
+                            ShipSchedule{ship: info.id, actions: Vec::new()},
                             TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
                             ClearOnUnload,
                         ))

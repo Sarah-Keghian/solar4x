@@ -51,7 +51,7 @@ pub struct EditorKeymap {
     pub select_previous: Key,
     pub back: Key,
     pub new_node: Key,
-    pub create_schedule: Key,
+    pub open_scheduler: Key,
 }
 
 impl Keymap {
@@ -183,7 +183,7 @@ impl Default for EditorKeymap {
             select_previous: Key::from_str_unchecked("up"),
             back: Key::from_str_unchecked("esc"),
             new_node: Key::from_str_unchecked("n"),
-            create_schedule: Key::from_str_unchecked("s"),
+            open_scheduler: Key::from_str_unchecked("s"),
         }
     }
 }
