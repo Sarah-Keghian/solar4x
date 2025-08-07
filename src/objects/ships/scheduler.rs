@@ -1,11 +1,14 @@
 use super::trajectory::{TrajectoryEvent, ManeuverNode};
 use crate::objects::ships::{ShipID};
 use crate::physics::time::GameTime;
+use crate::prelude::ShipsMapping;
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
     app.add_systems(FixedUpdate, handle_schedules);
 }
+
+#[derive(Clone)]
 pub(crate) enum ShipActionKind {
     AddNode{ node: ManeuverNode },
     // OtherAction,
@@ -16,6 +19,9 @@ pub(crate) struct ShipSchedule {
     pub(crate) ship: ShipID,
     pub(crate) actions: Vec<(u64, ShipActionKind)>
 }
+
+#[derive(Event)]
+pub(crate) struct AddAction{pub ship_id: ShipID, pub tick: u64, pub action: ShipActionKind}
 
 fn handle_schedules (
     mut query: Query<&mut ShipSchedule>,
@@ -50,6 +56,20 @@ fn convert_kind(
                                                         );
         },
      // ShipActionKind::OtherAction => ...
+    }
+}
+
+fn handle_add_action_to_schedule(
+    mut reader: EventReader<AddAction>,
+    mut query: Query<&mut ShipSchedule>,
+    ships_map: Res<ShipsMapping>,
+) {
+    for event in reader.read() {
+        if let Some(&entity) = ships_map.0.get(&event.ship_id) {
+            if let Ok(mut schedule) = query.get_mut(entity) {
+                schedule.actions.push((event.tick, event.action.clone()));
+            }
+        }
     }
 }
 
