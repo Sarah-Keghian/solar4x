@@ -1,7 +1,7 @@
 use super::trajectory::{TrajectoryEvent, ManeuverNode};
 use crate::objects::ships::{ShipID};
 use crate::physics::time::GameTime;
-use crate::prelude::ShipsMapping;
+use crate::prelude::{ShipInfo, ShipsMapping};
 use bevy::prelude::*;
 
 pub fn plugin(app: &mut App) {
@@ -17,26 +17,23 @@ pub(crate) enum ShipActionKind {
 }
 
 #[derive(Component)]
-pub(crate) struct ShipSchedule {
-    pub(crate) ship: ShipID,
-    pub(crate) actions: Vec<(u64, ShipActionKind)>
-}
+pub(crate) struct ShipSchedule (pub(crate) Vec<(u64, ShipActionKind)>);
 
 #[derive(Event)]
 pub(crate) struct AddAction{pub ship_id: ShipID, pub tick: u64, pub action: ShipActionKind}
 
 fn handle_schedules (
-    mut query: Query<&mut ShipSchedule>,
+    mut query: Query<(&mut ShipSchedule, &ShipInfo)>,
     mut traj_writer:EventWriter<TrajectoryEvent>,
     time: Res<GameTime>, 
 ) {
-    for mut schedule in query.iter_mut() {
+    for (mut schedule, info) in query.iter_mut() {
         let mut i: usize = 0;
-        while i < schedule.actions.len() {
-            if schedule.actions[i].0 <= time.tick() {
-                let (tick, kind) = schedule.actions.remove(i);
-                let ship = schedule.ship;
-                convert_kind(tick, &kind, &ship, &mut traj_writer);
+        while i < schedule.0.len() {
+            if schedule.0[i].0 <= time.tick() {
+                let (tick, kind) = schedule.0.remove(i);
+                let ship_id = info.id;
+                convert_kind(tick, &kind, &ship_id, &mut traj_writer);
             }
             i += 1;
         }
@@ -69,7 +66,7 @@ fn handle_add_action_to_schedule(
     for event in reader.read() {
         if let Some(&entity) = ships_map.0.get(&event.ship_id) {
             if let Ok(mut schedule) = query.get_mut(entity) {
-                schedule.actions.push((event.tick, event.action.clone()));
+                schedule.0.push((event.tick, event.action.clone()));
             }
         }
     }
@@ -99,11 +96,12 @@ mod tests {
             thrust: DVec3{x: 0., y: 0., z: 0.}, 
             origin: ArrayString::from("terre").unwrap()
         };
-        let ship_schedule = ShipSchedule {
-            ship: ship_id,
-            actions: vec![(1, ShipActionKind::AddNode { node: node.clone() })],
+        let ship_schedule = ShipSchedule (vec![(1, ShipActionKind::AddNode { node: node.clone() })]);
+        let info = ShipInfo { 
+            id: ArrayString::from("ship").unwrap(),
+            ..default()
         };
-        app.world_mut().spawn(ship_schedule);
+        app.world_mut().spawn((info, ship_schedule));
         app.world_mut().insert_resource(GameTime { simtick: 8 });
 
         app.world_mut().run_schedule(FixedUpdate);

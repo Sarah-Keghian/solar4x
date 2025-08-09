@@ -93,7 +93,7 @@ fn handle_ship_events(
                             influence,
                             pos,
                             Velocity(info.spawn_speed),
-                            ShipSchedule{ship: info.id, actions: Vec::new()},
+                            ShipSchedule(Vec::new()),
                             TransformBundle::from_transform(Transform::from_xyz(0., 0., 1.)),
                             ClearOnUnload,
                         ))
