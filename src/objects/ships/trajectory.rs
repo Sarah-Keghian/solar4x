@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use arrayvec::ArrayString;
+// use arrayvec::ArrayString;
 use vectorize;
 
 use bevy::{math::DVec3, prelude::*};
@@ -18,7 +18,7 @@ use crate::{
     game::{Authoritative, GameFiles},
     objects::prelude::{BodiesMapping, BodyID},
     physics::{prelude::*, time::TickEvent},
-    prelude::{exit_on_error_if_app, GameStage, ShipEvent},
+    prelude::{exit_on_error_if_app, GameStage},
     utils::algebra::orbital_to_global_matrix,
 };
 
@@ -171,17 +171,17 @@ fn follow_trajectory(
     coords: Query<(&Position, &Velocity)>,
     mut trajectories: Query<(Entity, &mut CurrentTrajectory, &ShipInfo)>,
     time: Res<GameTime>,
-    mut ship_event_writer: EventWriter<ShipEvent>,
+    // mut ship_event_writer: EventWriter<ShipEvent>,
 ) {
     let velocity_updates = Arc::new(Mutex::new(Vec::new()));
-    let ship_events = Arc::new(Mutex::new(Vec::new()));
+    // let ship_events = Arc::new(Mutex::new(Vec::new()));
     trajectories.par_iter_mut().for_each(|(e, mut t, info)| {
         if let Some((tick, n)) = t.queue.peek() {
             if *tick <= time.tick() {
-                let id = ArrayString::from(&info.id).unwrap();
-                ship_events.lock().unwrap().push(
-                    ShipEvent::SwitchToFreeMotion(id)
-                );
+                // let id = ArrayString::from(&info.id).unwrap();
+                // ship_events.lock().unwrap().push(
+                //     ShipEvent::SwitchToFreeMotion(id)
+                // );
                 if let Some(origin) = mapping.0.get(&n.origin) {
                     let (&Position(o_pos), &Velocity(o_speed)) = coords.get(*origin).unwrap();
                     let (&Position(pos), &Velocity(speed)) = coords.get(e).unwrap();
@@ -195,12 +195,12 @@ fn follow_trajectory(
             }
         }
     });
-    ship_event_writer.send_batch(
-    Arc::try_unwrap(ship_events)
-        .unwrap()
-        .into_inner()
-        .unwrap(),
-    );
+    // ship_event_writer.send_batch(
+    // Arc::try_unwrap(ship_events)
+    //     .unwrap()
+    //     .into_inner()
+    //     .unwrap(),
+    // );
 
     velocity_event_writer.send_batch(
         Arc::try_unwrap(velocity_updates)

@@ -176,7 +176,7 @@ pub struct EditorScreen;
 #[allow(clippy::too_many_arguments)]
 fn create_screen(
     mut commands: Commands,
-    mut writer: EventWriter<ShipEvent>,
+    // mut writer: EventWriter<ShipEvent>,
     screen: Res<State<AppScreen>>,
     ships: Query<(&ShipInfo, &Position, &Velocity)>,
     ships_mapping: Res<ShipsMapping>,
@@ -197,19 +197,21 @@ fn create_screen(
             let host_body = if let Ok(influence) = influenced.get(*e) {
                 influence.main_influencer
 
-            } else if let Ok((host_body, position)) = host_bodies.get(*e) {
-                let influence = Influenced::new(position, &influencing_bodies, &bodies_mapping, main_body);
-                let acc = Acceleration::new(get_acceleration(
-                                position.0,
-                                pos_mass
-                                    .iter_many(&influence.influencers)
-                                    .map(|(p, m)| (p.0, m.0)),
-                ));
-                commands.entity(*e).insert((influence, acc));
-                let host_body = bodies_mapping.0.get(&host_body.0).copied();
-                commands.entity(*e).remove::<(HostBody, EllipticalOrbit, OrbitingObjects)>();
-                host_body
-            } else {
+            } 
+            // else if let Ok((host_body, position)) = host_bodies.get(*e) {
+            //     let influence = Influenced::new(position, &influencing_bodies, &bodies_mapping, main_body);
+            //     let acc = Acceleration::new(get_acceleration(
+            //                     position.0,
+            //                     pos_mass
+            //                         .iter_many(&influence.influencers)
+            //                         .map(|(p, m)| (p.0, m.0)),
+            //     ));
+            //     commands.entity(*e).insert((influence, acc));
+            //     let host_body = bodies_mapping.0.get(&host_body.0).copied();
+            //     commands.entity(*e).remove::<(HostBody, EllipticalOrbit, OrbitingObjects)>();
+            //     host_body
+            // } 
+            else {
                 return;
             };
 
@@ -229,7 +231,7 @@ fn create_screen(
             let mut map = SpaceMap::new(system_size.0, host_body, host_body);
             map.autoscale(&bodies_mapping.0, &bodies);
             commands.insert_resource(map);
-            writer.send(ShipEvent::SwitchToFreeMotion(*id));
+            // writer.send(ShipEvent::SwitchToFreeMotion(*id));
         }
     }
 }
@@ -240,12 +242,12 @@ pub struct ClearOnEditorExit;
 fn clear_screen(
     mut commands: Commands, 
     query: Query<Entity, With<ClearOnEditorExit>>,
-    mut disable_orbit_check: ResMut<DisableShipOrbitCheck>, 
+    // mut disable_orbit_check: ResMut<DisableShipOrbitCheck>, 
 ) {
     commands.remove_resource::<EditorContext>();
     commands.remove_resource::<SpaceMap>();
     query.iter().for_each(|e| commands.entity(e).despawn());
-    disable_orbit_check.0 = false;
+    // disable_orbit_check.0 = false;
 }
 
 fn read_input(

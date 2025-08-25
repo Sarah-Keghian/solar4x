@@ -47,16 +47,16 @@ impl Plugin for ShipsPlugin {
                 (
                     handle_ship_create,
                     handle_ship_remove,
-                    handle_switch_to_orbital,
-                    handle_switch_to_free_motion,
+                    // handle_switch_to_orbital,
+                    // handle_switch_to_free_motion,
                 ).in_set(ObjectsUpdate))
-            .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate))
-            .add_systems(
-                PostUpdate,
-                check_ship_orbits.run_if(|r: Option<Res<DisableShipOrbitCheck>>| {
-                    !r.is_some_and(|r| r.0)
-                }),
-            );
+            .add_systems(OnEnter(Loaded), create_ships.in_set(ObjectsUpdate));
+            // .add_systems(
+            //     PostUpdate,
+            //     check_ship_orbits.run_if(|r: Option<Res<DisableShipOrbitCheck>>| {
+            //         !r.is_some_and(|r| r.0)
+            //     }),
+            // );
     }
 }
 #[derive(Component)]
@@ -64,7 +64,7 @@ pub(crate) struct HostBody(pub BodyID);
 
 pub type ShipID = ArrayString<MAX_ID_LENGTH>;
 
-#[derive(Component, Clone, Default, PartialEq)]
+#[derive(Component, Clone, Default, PartialEq, Debug)]
 pub struct ShipInfo {
     pub id: ShipID,
     pub spawn_pos: DVec3,
@@ -74,7 +74,7 @@ pub struct ShipInfo {
 #[derive(Resource, Default)]
 pub struct ShipsMapping(pub HashMap<ShipID, Entity>);
 
-#[derive(Event)]
+#[derive(Event, Debug)]
 pub enum ShipEvent {
     Create(ShipInfo),
     Remove(ShipID),
