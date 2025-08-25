@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use crate::utils::Direction2;
 
 /// Number of server updates (ticks) per real time second
-// pub const TPS: f32 = 1.;
-
+// pub const TPS: f32 = 1.; comment
 /// Number of simulation updates (simticks) per real time second
 pub const STPS: f64 = 64.;
 

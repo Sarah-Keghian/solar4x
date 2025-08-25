@@ -145,7 +145,7 @@ impl<'de> Deserialize<'de> for Key {
         D: serde::Deserializer<'de>,
     {
         struct KeyVisitor;
-        impl<'d> Visitor<'d> for KeyVisitor {
+        impl Visitor<'_> for KeyVisitor {
             type Value = Key;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

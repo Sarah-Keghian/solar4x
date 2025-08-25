@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+// use arrayvec::ArrayString;
 use vectorize;
 
 use bevy::{math::DVec3, prelude::*};
@@ -165,21 +166,27 @@ pub fn write_trajectory(path: impl AsRef<Path>, t: &Trajectory) -> Result<(), Tr
 }
 
 fn follow_trajectory(
-    mut velocity_events: EventWriter<VelocityUpdate>,
+    mut velocity_event_writer: EventWriter<VelocityUpdate>,
     mapping: Res<BodiesMapping>,
     coords: Query<(&Position, &Velocity)>,
     mut trajectories: Query<(Entity, &mut CurrentTrajectory, &ShipInfo)>,
     time: Res<GameTime>,
+    // mut ship_event_writer: EventWriter<ShipEvent>,
 ) {
-    let events = Arc::new(Mutex::new(Vec::new()));
+    let velocity_updates = Arc::new(Mutex::new(Vec::new()));
+    // let ship_events = Arc::new(Mutex::new(Vec::new()));
     trajectories.par_iter_mut().for_each(|(e, mut t, info)| {
         if let Some((tick, n)) = t.queue.peek() {
             if *tick <= time.tick() {
+                // let id = ArrayString::from(&info.id).unwrap();
+                // ship_events.lock().unwrap().push(
+                //     ShipEvent::SwitchToFreeMotion(id)
+                // );
                 if let Some(origin) = mapping.0.get(&n.origin) {
                     let (&Position(o_pos), &Velocity(o_speed)) = coords.get(*origin).unwrap();
                     let (&Position(pos), &Velocity(speed)) = coords.get(e).unwrap();
-                    let thrust = orbital_to_global_matrix(o_pos, o_speed, pos, speed) * n.thrust;
-                    events.lock().unwrap().push(VelocityUpdate {
+                    let thrust: DVec3 = orbital_to_global_matrix(o_pos, o_speed, pos, speed) * n.thrust;
+                    velocity_updates.lock().unwrap().push(VelocityUpdate {
                         ship_id: info.id,
                         thrust,
                     });
@@ -188,7 +195,19 @@ fn follow_trajectory(
             }
         }
     });
-    velocity_events.send_batch(Arc::try_unwrap(events).unwrap().into_inner().unwrap());
+    // ship_event_writer.send_batch(
+    // Arc::try_unwrap(ship_events)
+    //     .unwrap()
+    //     .into_inner()
+    //     .unwrap(),
+    // );
+
+    velocity_event_writer.send_batch(
+        Arc::try_unwrap(velocity_updates)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
+    );
 }
 
 pub fn handle_thrusts(
@@ -285,12 +304,11 @@ mod tests {
         state::state::NextState,
     };
 
-    use crate::{objects::ships::ShipEvent, physics::time::SIMTICKS_PER_TICK, prelude::*};
+    use crate::{objects::ships::{ShipEvent, DisableShipOrbitCheck}, physics::time::SIMTICKS_PER_TICK, prelude::*};
 
     use super::*;
 
-    fn new_app() -> App {
-        let mut app = App::new();
+    fn new_app_with(mut app: App) -> App {
         app.add_plugins(ClientPlugin::testing().in_mode(ClientMode::Singleplayer));
         app.update();
         app
@@ -311,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_handle_trajectory_event() -> color_eyre::Result<()> {
-        let mut app = new_app();
+        let mut app = App::new();
+        app = new_app_with(app);
         let trajectory = new_trajectory();
         app.world_mut().send_event(TrajectoryEvent::Create {
             ship: ShipID::from("s")?,
@@ -333,7 +352,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_trajectory() {
-        let mut app = new_app();
+        let mut app = App::new();
+        app = new_app_with(app);
         let id = id_from("s");
         app.world_mut().send_event(ShipEvent::Create(ShipInfo {
             id,
@@ -361,7 +381,9 @@ mod tests {
 
     #[test]
     fn test_follow_trajectory() {
-        let mut app = new_app();
+        let mut app = App::new();
+        app.insert_resource(DisableShipOrbitCheck(true));
+        app = new_app_with(app);
         let id = id_from("s");
         app.world_mut().send_event(ShipEvent::Create(ShipInfo {
             id,
@@ -390,6 +412,6 @@ mod tests {
             .world_mut()
             .query_filtered::<&Velocity, With<ShipInfo>>()
             .single(app.world());
-        assert!((ship_speed.0 - DVec3::new(0., 2e4, 0.)).length() < 10.);
+        assert!((ship_speed.0 - DVec3::new(0., 2e4, 0.)).length() < 10., "Erreur trop grande : {}, ship_speed.0 : {}", (ship_speed.0 - DVec3::new(0., 2e4, 0.)).length(), ship_speed.0);
     }
 }

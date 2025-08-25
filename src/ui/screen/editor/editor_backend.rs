@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use crate::{
     game::GameFiles,
-    objects::ships::trajectory::{read_ship_trajectory, Trajectory, TrajectoryEvent},
+    objects::{
+        ships::trajectory::{read_ship_trajectory, Trajectory, TrajectoryEvent},
+        orbiting_obj::OrbitingObjects,
+    },
     physics::{
         influence::HillRadius,
         predictions::{Prediction, PredictionStart},
@@ -302,11 +305,13 @@ fn tick_prediction_delay(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_temp_predictions(
     ctx: Res<EditorContext>,
     predictions_number: Res<NumberOfPredictions>,
     query: Query<(&Acceleration, &Influenced)>,
     mut bodies: Query<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
+    orbiting: Query<&OrbitingObjects>,
     bodies_mapping: Res<BodiesMapping>,
     mut coords: Query<(&mut Position, &mut Velocity), With<TempPrediction>>,
     space_map: Res<SpaceMap>,
@@ -329,6 +334,7 @@ fn update_temp_predictions(
         influence,
         reference,
         &mut bodies.as_query_lens(),
+        &orbiting,
         &bodies_mapping.0,
         &nodes,
     );

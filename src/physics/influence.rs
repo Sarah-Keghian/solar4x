@@ -3,7 +3,11 @@ use bevy::{math::DVec3, prelude::*};
 use crate::game::Loaded;
 use crate::objects::prelude::*;
 
-use crate::objects::bodies::BodyID;
+use crate::objects::{
+    bodies::BodyID,
+    orbiting_obj::{OrbitingObjects, OrbitalObjID},
+};
+use crate::physics::{orbit::EllipticalOrbit, Mass};
 
 use super::time::TickEvent;
 use super::Position;
@@ -34,26 +38,30 @@ pub struct Influenced {
 impl Influenced {
     pub fn new(
         Position(object_pos): &Position,
-        bodies: &Query<(&Position, &HillRadius, &BodyInfo)>,
+        bodies: &Query<(&Position, &HillRadius, &OrbitingObjects)>,
         mapping: &BodiesMapping,
         main_body: BodyID,
     ) -> Self {
         // if an object is not in a bodie's sphere of influence, it is not in its children's either
         fn influencers_rec(
             body: BodyID,
-            query: &Query<(&Position, &HillRadius, &BodyInfo)>,
+            query: &Query<(&Position, &HillRadius, &OrbitingObjects)>,
             mapping: &BodiesMapping,
             object_pos: &DVec3,
             influences: &mut Vec<(Entity, f64)>,
         ) {
             if let Some(e) = mapping.0.get(&body) {
-                let (Position(body_pos), HillRadius(hill_radius), BodyInfo(data)) =
+                let (Position(body_pos), HillRadius(hill_radius), OrbitingObjects(orbiting)) =
                     query.get(*e).unwrap();
                 let r = *object_pos - *body_pos;
                 let dist = r.length();
                 if dist < *hill_radius {
                     influences.push((*e, *hill_radius));
-                    data.orbiting_bodies.iter().for_each(|child| {
+                    orbiting.iter().for_each(|orbital_obj| {
+                        let child = match orbital_obj {
+                            OrbitalObjID::Body(body_id) => body_id,
+                            OrbitalObjID::Ship(ship_id) => ship_id,
+                        };
                         influencers_rec(*child, query, mapping, object_pos, influences);
                     })
                 }
@@ -74,7 +82,7 @@ impl Influenced {
 
 fn setup_hill_spheres(
     mut commands: Commands,
-    query: Query<&BodyInfo>,
+    query: Query<(&BodyInfo, &EllipticalOrbit, &OrbitingObjects, &Mass)>,
     primary: Query<(Entity, &BodyInfo), With<PrimaryBody>>,
     mapping: Res<BodiesMapping>,
 ) {
@@ -83,13 +91,19 @@ fn setup_hill_spheres(
     while i < queue.len() {
         let (id, parent_mass) = queue[i];
         if let Some(entity) = mapping.0.get(&id) {
-            if let Ok(BodyInfo(data)) = query.get(*entity) {
-                let radius = (data.semimajor_axis
-                    * (1. - data.eccentricity)
-                    * (data.mass / (3. * (parent_mass + data.mass))).powf(1. / 3.))
+            if let Ok((BodyInfo(data), orbit, OrbitingObjects(orbiting_obj), Mass(mass))) = query.get(*entity) {
+                let radius = (orbit.semimajor_axis
+                    * (1. - orbit.eccentricity)
+                    * (mass / (3. * (parent_mass + mass))).powf(1. / 3.))
                 .max(data.radius);
                 commands.entity(*entity).insert(HillRadius(radius));
-                queue.extend(data.orbiting_bodies.iter().map(|c| (*c, data.mass)));
+                queue.extend(orbiting_obj.iter().map(|obj| {
+                    let id = match obj {
+                        OrbitalObjID::Body(body_id) => body_id,
+                        OrbitalObjID::Ship(ship_id) => ship_id,
+                    };
+                    (*id, *mass)
+                }));
             }
         }
         i += 1;
@@ -101,7 +115,7 @@ fn setup_hill_spheres(
 
 fn update_influence(
     mut influenced: Query<(&Position, &mut Influenced)>,
-    bodies: Query<(&Position, &HillRadius, &BodyInfo)>,
+    bodies: Query<(&Position, &HillRadius, &OrbitingObjects)>,
     mapping: Res<BodiesMapping>,
     main_body: Query<&BodyInfo, With<PrimaryBody>>,
 ) {

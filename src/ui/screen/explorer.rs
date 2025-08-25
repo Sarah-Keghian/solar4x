@@ -34,6 +34,7 @@ use crate::{
         },
     },
 };
+use crate::objects::orbiting_obj::OrbitingObjects;
 
 use super::PreviousScreen;
 
@@ -66,12 +67,14 @@ pub fn plugin(app: &mut App) {
 fn create_screen(
     mut commands: Commands,
     primary: Query<Entity, With<PrimaryBody>>,
-    bodies: Query<&BodyInfo>,
+    bodies: Query<(&BodyInfo, &OrbitingObjects)>,
     system_size: Res<SystemSize>,
+    mapping: Res<BodiesMapping>,
+    query: Query<&OrbitingObjects>
 ) {
     let primary = primary.single();
     commands.insert_resource(SpaceMap::new(system_size.0, Some(primary), Some(primary)));
-    commands.insert_resource(ExplorerContext::new(primary, &bodies));
+    commands.insert_resource(ExplorerContext::new(primary, &bodies,mapping, query));
 }
 
 fn clear_screen(mut commands: Commands) {
@@ -97,16 +100,18 @@ pub struct ExplorerContext {
 }
 
 impl ExplorerContext {
-    pub fn new(primary: Entity, bodies: &Query<&BodyInfo>) -> ExplorerContext {
-        let primary_data = &bodies.get(primary).unwrap().0;
-        let infos: Vec<_> = bodies.iter().map(|i| &i.0).collect();
+    pub fn new(primary: Entity, bodies: &Query<(&BodyInfo, &OrbitingObjects)>, mapping: Res<BodiesMapping>, query: Query<&OrbitingObjects>) -> ExplorerContext {
+        let (primary_info, primary_orbiting) = bodies.get(primary).unwrap();
+        let primary_data = primary_info.clone().0;
+        let infos: Vec<_> = bodies.iter().map(|(i,_)| &i.0).collect();
         ExplorerContext {
             side_pane_mode: SidePaneMode::default(),
             info_toggle: false,
-            tree_state: TreeState::new(primary_data, Some(primary_data), infos.clone().into_iter()),
+            tree_state: TreeState::new(&primary_data, Some(&primary_data), infos.clone().into_iter(), mapping, query),
             search_state: SearchState::new(infos.into_iter()),
             info: InfoWidget {
-                body_info: primary_data.clone(),
+                body_info: primary_data,
+                orbiting_obj: primary_orbiting.clone(),
             },
             space_map: SpaceMapWidget::default(),
         }
@@ -232,6 +237,7 @@ fn handle_explorer_events(
     mut events: EventReader<ExplorerEvent>,
     mapping: Res<BodiesMapping>,
     bodies: Query<&BodyInfo>,
+    bodies_orbiting: Query<(&BodyInfo, &OrbitingObjects)>,
     mut time_events: ResMut<Events<TimeEvent>>,
     fuzzy_matcher: Res<SearchMatcher>,
 ) {
@@ -282,7 +288,7 @@ fn handle_explorer_events(
                             ctx.tree_state.focus_body(bodies.get(*entity).unwrap().0.id)
                         }
                     }
-                    Autoscale => space_map.autoscale(&mapping.0, &bodies),
+                    Autoscale => space_map.autoscale(&mapping.0, &bodies_orbiting),
                 }
             }
             ExplorerEvent::View(event) => match *event {

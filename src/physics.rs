@@ -12,7 +12,7 @@ pub mod orbit;
 pub mod predictions;
 pub mod time;
 
-const SECONDS_PER_DAY: f64 = 24. * 3600.;
+pub const SECONDS_PER_DAY: f64 = 24. * 3600.;
 
 /// Gravitationnal constant in km3kg-1d-2
 pub const G: f64 = 6.6743e-11 * SECONDS_PER_DAY * SECONDS_PER_DAY * 1e-9;
@@ -34,7 +34,7 @@ pub struct Position(pub DVec3);
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct Velocity(pub DVec3);
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 pub struct Mass(pub f64);
 
 pub struct PhysicsPlugin;

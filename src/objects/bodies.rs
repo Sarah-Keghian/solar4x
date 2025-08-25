@@ -14,7 +14,7 @@ use super::ObjectsUpdate;
 
 pub mod bodies_config;
 pub mod body_data;
-mod main_bodies;
+pub(crate) mod main_bodies;
 
 pub type BodyID = ArrayString<MAX_ID_LENGTH>;
 // #[derive(Serialize, Deserialize)]
@@ -38,10 +38,10 @@ pub type BodyID = ArrayString<MAX_ID_LENGTH>;
 #[derive(Component)]
 pub struct PrimaryBody;
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct BodyInfo(pub BodyData);
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct BodiesMapping(pub HashMap<BodyID, Entity>);
 
 pub struct BodiesPlugin;
@@ -53,18 +53,19 @@ impl Plugin for BodiesPlugin {
 }
 
 pub fn build_system(mut commands: Commands, config: Res<BodiesConfig>) {
-    let bodies: Vec<_> = read_main_bodies()
+    let mut filter = config.clone().into_filter();
+    let bodies_orbiting_obj: Vec<_> = read_main_bodies()
         .expect("Failed to read bodies")
         .into_iter()
-        .filter(config.clone().into_filter())
+        .filter(|(body,_)| filter(body))
         .collect();
-    let primary_body = bodies
+    let primary_tuple = bodies_orbiting_obj
         .iter()
-        .find(|data| data.host_body.is_none())
-        .expect("no primary body found")
-        .id;
+        .find(|(bodies,_)| bodies.host_body.is_none())
+        .expect("no primary body found");
+    let primary_body = primary_tuple.0.id;
     let mut id_mapping = HashMap::new();
-    for data in bodies {
+    for (data, orbiting_obj) in bodies_orbiting_obj {
         let id = data.id;
         let mut entity = commands.spawn((
             Position::default(),
@@ -72,6 +73,7 @@ pub fn build_system(mut commands: Commands, config: Res<BodiesConfig>) {
             Mass(data.mass),
             BodyInfo(data),
             Velocity::default(),
+            orbiting_obj,
             ClearOnUnload,
         ));
         if id == primary_body {

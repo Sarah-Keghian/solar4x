@@ -9,7 +9,16 @@ use ratatui::{
 };
 
 use crate::{
-    objects::ships::trajectory::ManeuverNode, physics::time::SIMTICKS_PER_TICK, prelude::*,
+    objects::{
+        orbiting_obj::OrbitingObjects, ships::{trajectory::ManeuverNode,
+            // DisableShipOrbitCheck, HostBody
+            }
+}, 
+    physics::
+    {
+        // influence::HillRadius, leapfrog::get_acceleration,
+        time::SIMTICKS_PER_TICK}, 
+    prelude::*,
 };
 
 use super::AppScreen;
@@ -172,24 +181,51 @@ pub struct EditorScreen;
 #[allow(clippy::too_many_arguments)]
 fn create_screen(
     mut commands: Commands,
+    // mut writer: EventWriter<ShipEvent>,
     screen: Res<State<AppScreen>>,
-    ships: Query<(&ShipInfo, &Position, &Velocity, &Influenced)>,
+    ships: Query<(&ShipInfo, &Position, &Velocity)>,
     ships_mapping: Res<ShipsMapping>,
     bodies_mapping: Res<BodiesMapping>,
-    bodies: Query<&BodyInfo>,
+    bodies: Query<(&BodyInfo, &OrbitingObjects)>,
+    // pos_mass: Query<(&Position, &Mass), With<OrbitingObjects>>,
+    // influencing_bodies: Query<(&Position, &HillRadius, &OrbitingObjects)>,
     system_size: Res<SystemSize>,
+    influenced: Query<&Influenced>,
+    // host_bodies: Query<(&HostBody, &Position)>,
+    // primary_body: Query<&BodyInfo, With<PrimaryBody>>,
     time: Res<GameTime>,
 ) {
+    // let main_body = primary_body.get_single().unwrap().0.id;
     if let AppScreen::Editor(id) = screen.get() {
         if let Some(e) = ships_mapping.0.get(id) {
+
+            let host_body = if let Ok(influence) = influenced.get(*e) {
+                influence.main_influencer
+
+            } 
+            // else if let Ok((host_body, position)) = host_bodies.get(*e) {
+            //     let influence = Influenced::new(position, &influencing_bodies, &bodies_mapping, main_body);
+            //     let acc = Acceleration::new(get_acceleration(
+            //                     position.0,
+            //                     pos_mass
+            //                         .iter_many(&influence.influencers)
+            //                         .map(|(p, m)| (p.0, m.0)),
+            //     ));
+            //     commands.entity(*e).insert((influence, acc));
+            //     let host_body = bodies_mapping.0.get(&host_body.0).copied();
+            //     commands.entity(*e).remove::<(HostBody, EllipticalOrbit, OrbitingObjects)>();
+            //     host_body
+            // } 
+            else {
+                return;
+            };
+
             let (
                 info,
                 pos,
                 speed,
-                Influenced {
-                    main_influencer, ..
-                },
             ) = ships.get(*e).unwrap();
+
             commands.insert_resource(EditorContext::new(
                 *e,
                 info.clone(),
@@ -197,9 +233,10 @@ fn create_screen(
                 speed,
                 time.simtick,
             ));
-            let mut map = SpaceMap::new(system_size.0, *main_influencer, *main_influencer);
+            let mut map = SpaceMap::new(system_size.0, host_body, host_body);
             map.autoscale(&bodies_mapping.0, &bodies);
             commands.insert_resource(map);
+            // writer.send(ShipEvent::SwitchToFreeMotion(*id));
         }
     }
 }
@@ -207,10 +244,15 @@ fn create_screen(
 #[derive(Component, Clone, Copy)]
 pub struct ClearOnEditorExit;
 
-fn clear_screen(mut commands: Commands, query: Query<Entity, With<ClearOnEditorExit>>) {
+fn clear_screen(
+    mut commands: Commands, 
+    query: Query<Entity, With<ClearOnEditorExit>>,
+    // mut disable_orbit_check: ResMut<DisableShipOrbitCheck>, 
+) {
     commands.remove_resource::<EditorContext>();
     commands.remove_resource::<SpaceMap>();
     query.iter().for_each(|e| commands.entity(e).despawn());
+    // disable_orbit_check.0 = false;
 }
 
 fn read_input(

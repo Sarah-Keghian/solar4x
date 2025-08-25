@@ -108,11 +108,13 @@ mod tests {
     use super::*;
 
     use crate::{prelude::*, utils::algebra::circular_orbit_around_body};
-
+    use crate::objects::ships::DisableShipOrbitCheck;
+    
     #[test]
     fn test_leapfrog() {
         let mut app = App::new();
         app.add_plugins(ClientPlugin::testing().in_mode(ClientMode::Singleplayer));
+        app.insert_resource(DisableShipOrbitCheck(true));
         app.update();
         let world = app.world_mut();
         let mapping = &world.resource::<BodiesMapping>().0;

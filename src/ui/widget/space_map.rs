@@ -13,6 +13,8 @@ use ratatui::{
         Block, StatefulWidgetRef, WidgetRef,
     },
 };
+use crate::objects::orbiting_obj::{OrbitingObjects, OrbitalObjID};
+
 
 use crate::{prelude::*, utils::algebra::project_onto_plane};
 
@@ -80,24 +82,31 @@ impl SpaceMap {
         self.offset_amount = DVec2::ZERO;
     }
 
-    pub fn autoscale(&mut self, id_mapping: &HashMap<BodyID, Entity>, bodies: &Query<&BodyInfo>) {
-        if let Some(focus_data) = self.focus_body.map(|f| &bodies.get(f).unwrap().0) {
-            if let Some(max_dist) = focus_data
-                .orbiting_bodies
+    pub fn autoscale(
+        &mut self, 
+        id_mapping: &HashMap<BodyID, Entity>, //Il faut etre sur que ça me donne bien soit le ShipsMapping, soit le BosyMapping dans les deux cas
+        bodies: &Query<(&BodyInfo, &OrbitingObjects)>
+    ) {
+        if let Some(focus_orbiting_obj) = self.focus_body.map(|f| &bodies.get(f).unwrap().1.0) {
+            if let Some(max_dist) = focus_orbiting_obj
                 .iter()
-                .filter_map(|id| {
-                    id_mapping
-                        .get(id)
-                        .and_then(|&e| bodies.get(e).ok())
-                        .map(|body| body.0.semimajor_axis)
+                .filter_map(|obj_id| {
+                    if let OrbitalObjID::Body(id) = obj_id { 
+                        id_mapping
+                            .get(id)
+                            .and_then(|&e| bodies.get(e).ok())
+                            .map(|(body_info, _)| body_info.0.semimajor_axis)
+                    } else {
+                        None
+                    }
                 })
                 .max_by(|a, b| a.total_cmp(b))
             {
                 self.zoom_level = self.system_size / max_dist;
             }
-        }
+        }   
     }
-
+                
     pub fn focus(&mut self, entity: Entity) {
         self.reset_offset();
         self.focus_body = Some(entity);

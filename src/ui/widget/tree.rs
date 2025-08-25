@@ -7,7 +7,12 @@ use ratatui::{
 };
 
 use crate::utils::Direction2;
-use crate::{objects::prelude::*, utils::list::ClampedList};
+use crate::{
+    objects::{
+        prelude::*,
+        orbiting_obj::{OrbitingObjects, OrbitalObjID}
+    }, 
+    utils::list::ClampedList};
 
 #[derive(Debug, Event)]
 pub enum TreeEvent {
@@ -82,11 +87,29 @@ impl StatefulWidget for TreeWidget {
     }
 }
 
+fn get_orbiting_bodies(
+    body_id: &BodyID,
+    bodies_mapping: &Res<BodiesMapping>,
+    query: &Query<&OrbitingObjects>,
+) -> Vec<BodyID> {
+    let body_entity = bodies_mapping.0.get(body_id).unwrap();
+    let orbiting_obj = &query.get(*body_entity).unwrap().0;
+    orbiting_obj.iter().filter_map(|obj| {
+        if let OrbitalObjID::Body(id) = obj {
+            Some(*id)
+        } else {
+            None
+        } 
+    }).collect()
+}
+
 impl TreeState {
     pub fn new<'a>(
         primary: &'a BodyData,
         focus_body: Option<&'a BodyData>,
         bodies: impl Iterator<Item = &'a BodyData>,
+        bodies_mapping: Res<BodiesMapping>,
+        query: Query<&OrbitingObjects>,
     ) -> TreeState {
         #[derive(Clone)]
         struct Temp {
@@ -96,10 +119,11 @@ impl TreeState {
         }
         let mut info: HashMap<BodyID, Temp> = bodies
             .map(|data| {
+                let id = data.id;
                 (
-                    data.id,
+                    id,
                     Temp {
-                        children: data.orbiting_bodies.clone(),
+                        children: get_orbiting_bodies(&id, &bodies_mapping, &query),
                         semimajor_axis: data.semimajor_axis,
                         name: data.name.clone(),
                     },

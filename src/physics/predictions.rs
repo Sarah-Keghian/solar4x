@@ -13,6 +13,7 @@ use super::{
     leapfrog::{get_acceleration, get_dv, get_dx},
     time::{GAMETIME_PER_SIMTICK, SIMTICKS_PER_TICK},
 };
+use crate::objects::orbiting_obj::{OrbitalObjID, OrbitingObjects};
 
 /// Number of client updates between two predictions
 pub const PREDICTIONS_STEP: usize = 20;
@@ -35,12 +36,14 @@ pub struct PredictionStart {
 
 impl PredictionStart {
     /// Compute the future positions of this point with respect to a given referential and considering some influencer's gravitationnal pull on it
+    #[allow(clippy::too_many_arguments)]
     pub fn compute_predictions(
         &self,
         number: usize,
         influence: &Influenced,
         reference: Option<Entity>,
         bodies: &mut QueryLens<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
+        orbiting: &Query<&OrbitingObjects>,
         mapping: &HashMap<BodyID, Entity>,
         nodes: &BTreeMap<u64, ManeuverNode>,
     ) -> Vec<(DVec3, DVec3)> {
@@ -51,7 +54,7 @@ impl PredictionStart {
         let mut predictions = Vec::new();
         let simulated = simulated_from_influence(
             influence,
-            &mut bodies.transmute_lens::<&BodyInfo>(),
+            orbiting,
             mapping,
         );
         let mut map = simulated
@@ -123,7 +126,7 @@ impl PredictionStart {
                         let radius = map.get(&main_entity).unwrap().2;
                         let new_children = children_entities(
                             new_main,
-                            &mut bodies.transmute_lens::<&BodyInfo>(),
+                            orbiting,
                             mapping,
                         );
                         map.retain(|k, _| {
@@ -164,7 +167,7 @@ impl PredictionStart {
 
 fn simulated_from_influence(
     influence: &Influenced,
-    bodies: &mut QueryLens<&BodyInfo>,
+    bodies: &Query<&OrbitingObjects>,
     bodies_mapping: &HashMap<BodyID, Entity>,
 ) -> Vec<Entity> {
     let mut v = influence.influencers.clone();
@@ -176,18 +179,21 @@ fn simulated_from_influence(
 
 fn children_entities(
     parent: Entity,
-    bodies: &mut QueryLens<&BodyInfo>,
+    objects: &Query<&OrbitingObjects>,
     bodies_mapping: &HashMap<BodyID, Entity>,
-) -> Vec<Entity> {
-    let query = bodies.query();
-    query
-        .get(parent)
-        .unwrap()
-        .0
-        .orbiting_bodies
-        .iter()
-        .filter_map(|id| bodies_mapping.get(id).cloned())
-        .collect()
+    ) -> Vec<Entity> {
+        let orbiting = match objects.get(parent) {
+            Ok(o) => o,
+            Err(_) => return vec![],
+        };
+
+        orbiting.0.iter().filter_map(|orbital_obj| {
+            let id = match orbital_obj {
+                OrbitalObjID::Body(body_id) => body_id,
+                OrbitalObjID::Ship(ship_id) => ship_id,
+            };
+            bodies_mapping.get(id).cloned()
+        }).collect()
 }
 
 pub fn get_bodies_coordinates(
@@ -260,8 +266,9 @@ mod tests {
             Res<BodiesMapping>,
             Query<(&EllipticalOrbit, &BodyInfo, &HillRadius)>,
             Query<(&Position, &Mass)>,
+            Query<&OrbitingObjects>,
         )> = SystemState::new(world);
-        let (mapping, mut bodies, query) = system_state.get(world);
+        let (mapping, mut bodies, query, orbiting) = system_state.get(world);
         let predictions = PredictionStart {
             pos,
             speed,
@@ -273,6 +280,7 @@ mod tests {
             &influence,
             Some(earth),
             &mut bodies.as_query_lens(),
+            &orbiting,
             &mapping.0,
             &BTreeMap::new(),
         );
