@@ -10,9 +10,14 @@ use ratatui::{
 
 use crate::{
     objects::{
-        orbiting_obj::OrbitingObjects, ships::{trajectory::ManeuverNode, DisableShipOrbitCheck, HostBody}
+        orbiting_obj::OrbitingObjects, ships::{trajectory::ManeuverNode,
+            // DisableShipOrbitCheck, HostBody
+            }
 }, 
-    physics::{influence::HillRadius, leapfrog::get_acceleration, time::SIMTICKS_PER_TICK}, 
+    physics::
+    {
+        // influence::HillRadius, leapfrog::get_acceleration,
+        time::SIMTICKS_PER_TICK}, 
     prelude::*,
 };
 
@@ -182,15 +187,15 @@ fn create_screen(
     ships_mapping: Res<ShipsMapping>,
     bodies_mapping: Res<BodiesMapping>,
     bodies: Query<(&BodyInfo, &OrbitingObjects)>,
-    pos_mass: Query<(&Position, &Mass), With<OrbitingObjects>>,
-    influencing_bodies: Query<(&Position, &HillRadius, &OrbitingObjects)>,
+    // pos_mass: Query<(&Position, &Mass), With<OrbitingObjects>>,
+    // influencing_bodies: Query<(&Position, &HillRadius, &OrbitingObjects)>,
     system_size: Res<SystemSize>,
     influenced: Query<&Influenced>,
-    host_bodies: Query<(&HostBody, &Position)>,
-    primary_body: Query<&BodyInfo, With<PrimaryBody>>,
+    // host_bodies: Query<(&HostBody, &Position)>,
+    // primary_body: Query<&BodyInfo, With<PrimaryBody>>,
     time: Res<GameTime>,
 ) {
-    let main_body = primary_body.get_single().unwrap().0.id;
+    // let main_body = primary_body.get_single().unwrap().0.id;
     if let AppScreen::Editor(id) = screen.get() {
         if let Some(e) = ships_mapping.0.get(id) {
 
