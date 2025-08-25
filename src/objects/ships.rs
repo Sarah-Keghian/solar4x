@@ -287,9 +287,9 @@ pub(crate) fn check_ship_orbits(
                 let r = pos.0 - inf_pos.0;
                 let v = vel.0 - inf_vel.0;
                 let h = r.cross(v);
-                let e_vec = (v.cross(h)) / (G * inf_mass.0) - r / r.length();                
-                let e = e_vec.length();
-                if e < 1.0 {
+                let mu = G*inf_mass.0;
+                let epsilon = v.length().powf(2.)/2. - mu/r.length();
+                if epsilon < 0. {
                     writer.send(ShipEvent::SwitchToOrbital{ship_id: info.id, r_vec: r, v_vec: v, host_mass: *inf_mass});
                 }
             }
