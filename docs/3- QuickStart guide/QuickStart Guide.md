@@ -6,8 +6,8 @@
 3. Fork the GitHub repository.
 4. Clone your new repository and navigate into it:
    ```bash
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone https://github.com/Sarah-Keghian/solar4x.git
+   cd solar4x
 
 5. Inside the project folder, build the game (compiling Bevy takes time):
     ```bash
