@@ -1,0 +1,31 @@
+src/
+├── bin/
+│   └── client.rs        → Entry point
+├── objects/    → Game Entities 
+│   ├── ships.rs         → ShipsPlugin
+│   ├── bodies.rs        → BodiesPlugin
+|   ├── bodies/
+│   └── ships/
+│       ├── trajectories.rs
+|       └── ...
+├── physics/
+│   ├── leapfrog.rs      → Numerical calculation
+│   └── ...
+├── ui/
+│   ├── gui/           → Graphical interface
+│   ├── screen/        → TUI screen management (editor, explorer, etc.)
+│   └── ... 
+├── game.rs              → GamePlugin
+├── physics.rs           → PhysicsPlugin
+└── ...
+
+
+
+
+
+
+
+
+
+
+
