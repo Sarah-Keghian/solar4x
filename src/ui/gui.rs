@@ -1,5 +1,5 @@
 use bevy::{
-    color::palettes::css::{BLACK, DARK_GRAY, GOLD, GREEN, TEAL},
+    color::palettes::css::{BLACK, DARK_GRAY, GOLD, GREEN, TEAL, RED},
     core_pipeline::bloom::BloomSettings,
     input::{
         common_conditions::input_pressed,
@@ -13,15 +13,12 @@ use bevy::{
 };
 
 use crate::{
-    physics::{influence::HillRadius, orbit::SystemSize},
-    prelude::*,
-    utils::{
+    objects::{
+        orbiting_obj::{OrbitalObjID, OrbitingObjects}, ships::HostBody,
+    }, physics::{influence::HillRadius, orbit::SystemSize}, prelude::*, utils::{
         algebra::{center_to_periapsis_direction, ellipse_half_sizes},
         ui::EllipseBuilder,
-    },
-    objects::{
-        orbiting_obj::{OrbitingObjects, OrbitalObjID},
-    },
+    }
 };
 
 use self::editor_gui::CurrentGizmo;
@@ -332,7 +329,7 @@ fn draw_gizmos(
     ), With<BodyInfo>>,
     influence_query: Query<(&Transform, &HillRadius)>,
     orbit_query: Query<&EllipticalOrbit>,
-    // orbital_ships: Query<(&Transform, &Velocity, &EllipticalOrbit, &HostBody), With<ShipInfo>>,
+    orbital_ships: Query<(&Transform, &Velocity, &EllipticalOrbit, &HostBody), With<ShipInfo>>,
     ships: Query<(&Transform, &Velocity, &Influenced), With<ShipInfo>>,
     bodies_mapping: Res<BodiesMapping>,
     ships_mapping: Res<ShipsMapping>,
@@ -418,6 +415,29 @@ fn draw_gizmos(
                     pos.translation.xy(),
                     (radius.0 * scale) as f32,
                     Color::srgba(1., 0.1, 0.1, 0.1),
+                );
+            }
+                        // Display sphere of influence
+            for (pos, radius) in influence_query.iter() {
+                gizmos.circle_2d(
+                    pos.translation.xy(),
+                    (radius.0 * scale) as f32,
+                    Color::srgba(1., 0.1, 0.1, 0.1),
+                );
+            }
+            // Display orbital ships
+            for (transform, speed, _, HostBody(host_body_id)) in orbital_ships.iter() {
+                let host_body = bodies_mapping.0.get(host_body_id).unwrap();
+                let ref_speed = bodies.get(*host_body).unwrap().1 .0;
+                let speed = ((speed.0 - ref_speed).normalize_or(DVec3::X) * MAX_HEIGHT as f64 
+                    / (30. * zoom_level))
+                    .xy()
+                    .as_vec2();
+                let t = transform.translation.xy() - speed / 3.;
+                let perp = speed.perp() / 3.;
+                gizmos.linestrip_2d(
+                    [t + speed, t + perp, t - perp, t + speed],
+                    Color::Srgba(RED),
                 );
             }
             // Display ships
