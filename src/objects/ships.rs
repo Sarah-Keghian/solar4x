@@ -286,7 +286,6 @@ pub(crate) fn check_ship_orbits(
             if let Ok((inf_pos, inf_vel, inf_mass)) = influencers.get(main_influencer) {
                 let r = pos.0 - inf_pos.0;
                 let v = vel.0 - inf_vel.0;
-                let h = r.cross(v);
                 let mu = G*inf_mass.0;
                 let epsilon = v.length().powf(2.)/2. - mu/r.length();
                 if epsilon < 0. {
