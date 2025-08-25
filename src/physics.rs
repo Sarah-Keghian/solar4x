@@ -34,7 +34,7 @@ pub struct Position(pub DVec3);
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct Velocity(pub DVec3);
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 pub struct Mass(pub f64);
 
 pub struct PhysicsPlugin;
